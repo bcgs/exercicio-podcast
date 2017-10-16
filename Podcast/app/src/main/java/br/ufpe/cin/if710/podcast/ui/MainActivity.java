@@ -40,6 +40,7 @@ public class MainActivity extends Activity {
 
     private PodcastDBHelper db;
     private ListView items;
+    private boolean feedSaved;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -48,6 +49,10 @@ public class MainActivity extends Activity {
 
         db = PodcastDBHelper.getInstance(this);
         items = findViewById(R.id.items);
+
+        if (!hasInternetConnection() && feedSaved) {
+            new RestoreFeedList().execute();
+        }
     }
 
     @Override
@@ -87,11 +92,6 @@ public class MainActivity extends Activity {
         adapter.clear();
     }
 
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-    }
-
     private boolean hasInternetConnection() {
         ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
@@ -109,9 +109,10 @@ public class MainActivity extends Activity {
             List<ItemFeed> itemList = new ArrayList<>();
             try {
                 itemList = XmlFeedParser.parse(getRssFeed(params[0]));
-                // Refresh DB
-                db.getWritableDatabase().delete(PodcastDBHelper.DATABASE_TABLE, null, null);
-                new SaveFeedList().execute(itemList);
+                if (!feedSaved) {
+                    new SaveFeedList().execute(itemList);
+                    feedSaved = true;
+                }
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (XmlPullParserException e) {
@@ -152,6 +153,9 @@ public class MainActivity extends Activity {
     private class SaveFeedList extends AsyncTask<List<ItemFeed>, Void, Void> {
         @Override
         protected Void doInBackground(List<ItemFeed>... items) {
+            // Clear DB
+            db.getWritableDatabase().delete(PodcastDBHelper.DATABASE_TABLE, null, null);
+
             ContentValues values = new ContentValues();
             values.put(PodcastDBHelper.EPISODE_FILE_URI, "");
             for (ItemFeed item : items[0]) {
