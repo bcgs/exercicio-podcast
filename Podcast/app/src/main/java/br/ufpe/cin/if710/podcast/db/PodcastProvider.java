@@ -6,21 +6,42 @@ import android.database.Cursor;
 import android.net.Uri;
 
 public class PodcastProvider extends ContentProvider {
-    public PodcastProvider() {
+    private PodcastDBHelper db;
+
+    @Override
+    public boolean onCreate() {
+        db = PodcastDBHelper.getInstance(getContext());
+        return true;
+    }
+
+    private boolean uriMatchesEpisodes(Uri uri) {
+        return uri.equals(PodcastProviderContract.EPISODE_LIST_URI);
+    }
+
+    private boolean uriMatchesSpecificEpisode(Uri uri) {
+        return uri.getLastPathSegment().matches("\\d+");
     }
 
     @Override
-    public int delete(Uri uri, String selection, String[] selectionArgs) {
-        // Implement this to handle requests to delete one or more rows.
-        throw new UnsupportedOperationException("Not yet implemented");
+    public Cursor query(Uri uri, String[] projection, String selection,
+                        String[] selectionArgs, String sortOrder) {
+        Cursor cursor;
+        if (uriMatchesEpisodes(uri)) {
+            cursor = db.getReadableDatabase().query(
+                    PodcastProviderContract.EPISODE_TABLE,
+                    projection,
+                    selection,
+                    selectionArgs,
+                    null,
+                    null,
+                    sortOrder
+            );
+            return cursor;
+        }
+        else throw new IllegalArgumentException("Uri invalida!");
     }
 
-    @Override
-    public String getType(Uri uri) {
-        // TODO: Implement this to handle requests for the MIME type of the data
-        // at the given URI.
-        throw new UnsupportedOperationException("Not yet implemented");
-    }
+    // A PRINCIPIO SO SERA FORNECIDO QUERY E MIME TYPE.
 
     @Override
     public Uri insert(Uri uri, ContentValues values) {
@@ -29,15 +50,8 @@ public class PodcastProvider extends ContentProvider {
     }
 
     @Override
-    public boolean onCreate() {
-        // TODO: Implement this to initialize your content provider on startup.
-        return false;
-    }
-
-    @Override
-    public Cursor query(Uri uri, String[] projection, String selection,
-                        String[] selectionArgs, String sortOrder) {
-        // TODO: Implement this to handle query requests from clients.
+    public int delete(Uri uri, String selection, String[] selectionArgs) {
+        // TODO: Implement this to handle requests to delete one or more rows.
         throw new UnsupportedOperationException("Not yet implemented");
     }
 
@@ -46,5 +60,16 @@ public class PodcastProvider extends ContentProvider {
                       String[] selectionArgs) {
         // TODO: Implement this to handle requests to update one or more rows.
         throw new UnsupportedOperationException("Not yet implemented");
+    }
+
+    @Override
+    public String getType(Uri uri) {
+        if (uriMatchesEpisodes(uri)) {
+            return PodcastProviderContract.CONTENT_DIR_TYPE;
+        }
+        else if (uriMatchesSpecificEpisode(uri)) {
+            return PodcastProviderContract.CONTENT_ITEM_TYPE;
+        }
+        else throw new IllegalArgumentException("Uri invalida!");
     }
 }

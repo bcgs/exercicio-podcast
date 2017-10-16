@@ -46,7 +46,7 @@ episódio, atualizações em segundo plano, notificações de novos episódios, 
 | 1 | **sim** |
 | 2 | **sim** |
 | 3 | **sim** |
-| 4 | **não** |
+| 4 | **sim** |
 | 5 | **sim** |
 | 6 | **sim** |
 | 7 | **não** |

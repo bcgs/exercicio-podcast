@@ -10,12 +10,12 @@ import android.net.Uri;
 public class PodcastProviderContract {
 
     public static final String _ID = "_id";
-    public static final String TITLE = "nome";
-    public static final String DATE = "cpf";
-    public static final String DESCRIPTION = "email";
-    public static final String EPISODE_LINK = "media";
-    public static final String DOWNLOAD_LINK = "media";
-    public static final String EPISODE_URI = "media";
+    public static final String TITLE = "title";
+    public static final String DATE = "pubDate";
+    public static final String DESCRIPTION = "description";
+    public static final String EPISODE_LINK = "link";
+    public static final String DOWNLOAD_LINK = "downloadLink";
+    public static final String EPISODE_URI = "downloadUri";
     public static final String EPISODE_TABLE = "episodes";
 
 
