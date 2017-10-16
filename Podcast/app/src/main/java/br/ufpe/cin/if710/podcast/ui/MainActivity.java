@@ -11,6 +11,8 @@ import android.os.AsyncTask;
 import android.os.Bundle;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
+import android.widget.AdapterView;
 import android.widget.ListView;
 import android.widget.Toast;
 
@@ -107,7 +109,6 @@ public class MainActivity extends Activity {
             List<ItemFeed> itemList = new ArrayList<>();
             try {
                 itemList = XmlFeedParser.parse(getRssFeed(params[0]));
-
                 // Refresh DB
                 db.getWritableDatabase().delete(PodcastDBHelper.DATABASE_TABLE, null, null);
                 new SaveFeedList().execute(itemList);
@@ -129,17 +130,22 @@ public class MainActivity extends Activity {
             //atualizar o list view
             items.setAdapter(adapter);
             items.setTextFilterEnabled(true);
-            /*
             items.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
                 public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                     XmlFeedAdapter adapter = (XmlFeedAdapter) parent.getAdapter();
                     ItemFeed item = adapter.getItem(position);
-                    String msg = item.getTitle() + " " + item.getLink();
-                    Toast.makeText(getApplicationContext(), msg, Toast.LENGTH_SHORT).show();
+
+                    Intent intent = new Intent(getApplicationContext(), EpisodeDetailActivity.class);
+                    intent.putExtra("item_title", item.getTitle());
+                    intent.putExtra("item_description", item.getDescription());
+                    intent.putExtra("item_pubdate", item.getPubDate());
+                    intent.putExtra("item_link", item.getLink());
+                    intent.putExtra("item_dlink", item.getDownloadLink());
+
+                    startActivity(intent);
                 }
             });
-            /**/
         }
     }
 
