@@ -1,14 +1,19 @@
 package br.ufpe.cin.if710.podcast.ui.adapter;
 
 import java.util.List;
+
 import android.content.Context;
+import android.content.Intent;
+import android.net.Uri;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import br.ufpe.cin.if710.podcast.R;
 import br.ufpe.cin.if710.podcast.domain.ItemFeed;
+import br.ufpe.cin.if710.podcast.service.DownloadService;
 
 public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
 
@@ -46,25 +51,35 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
 	/**/
 
     //http://developer.android.com/training/improving-layouts/smooth-scrolling.html#ViewHolder
-    static class ViewHolder {
-        TextView item_title;
-        TextView item_date;
+    public static class ViewHolder {
+        public TextView item_title;
+        public TextView item_date;
+        public TextView item_action;
     }
 
     @Override
-    public View getView(int position, View convertView, ViewGroup parent) {
+    public View getView(final int position, View convertView, ViewGroup parent) {
         ViewHolder holder;
         if (convertView == null) {
             convertView = View.inflate(getContext(), linkResource, null);
             holder = new ViewHolder();
-            holder.item_title = (TextView) convertView.findViewById(R.id.item_title);
-            holder.item_date = (TextView) convertView.findViewById(R.id.item_date);
+            holder.item_title = convertView.findViewById(R.id.item_title);
+            holder.item_date = convertView.findViewById(R.id.item_date);
+            holder.item_action = convertView.findViewById(R.id.item_action);
             convertView.setTag(holder);
         } else {
             holder = (ViewHolder) convertView.getTag();
         }
         holder.item_title.setText(getItem(position).getTitle());
         holder.item_date.setText(getItem(position).getPubDate());
+        holder.item_action.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent downloadService = new Intent(getContext(), DownloadService.class);
+                downloadService.setData(Uri.parse(getItem(position).getDownloadLink()));
+                getContext().startService(downloadService);
+            }
+        });
         return convertView;
     }
 }

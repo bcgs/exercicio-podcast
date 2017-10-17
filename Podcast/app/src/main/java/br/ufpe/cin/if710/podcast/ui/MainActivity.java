@@ -1,14 +1,17 @@
 package br.ufpe.cin.if710.podcast.ui;
 
 import android.app.Activity;
+import android.content.BroadcastReceiver;
 import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.support.v4.content.LocalBroadcastManager;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -30,6 +33,7 @@ import br.ufpe.cin.if710.podcast.R;
 import br.ufpe.cin.if710.podcast.db.PodcastDBHelper;
 import br.ufpe.cin.if710.podcast.domain.ItemFeed;
 import br.ufpe.cin.if710.podcast.domain.XmlFeedParser;
+import br.ufpe.cin.if710.podcast.service.DownloadService;
 import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 
 public class MainActivity extends Activity {
@@ -86,10 +90,29 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        IntentFilter intentFilter = new IntentFilter(DownloadService.DOWNLOAD_COMPLETE);
+        LocalBroadcastManager.getInstance(this).registerReceiver(onDownloadCompleteEvent, intentFilter);
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        LocalBroadcastManager.getInstance(this).unregisterReceiver(onDownloadCompleteEvent);
+    }
+
+    @Override
     protected void onStop() {
         super.onStop();
         XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
         adapter.clear();
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        db.close();
     }
 
     private boolean hasInternetConnection() {
@@ -97,8 +120,8 @@ public class MainActivity extends Activity {
         NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
-
     private class DownloadXmlTask extends AsyncTask<String, Void, List<ItemFeed>> {
+
         @Override
         protected void onPreExecute() {
             Toast.makeText(getApplicationContext(), "iniciando...", Toast.LENGTH_SHORT).show();
@@ -120,7 +143,6 @@ public class MainActivity extends Activity {
             }
             return itemList;
         }
-
         @Override
         protected void onPostExecute(List<ItemFeed> feed) {
             Toast.makeText(getApplicationContext(), "terminando...", Toast.LENGTH_SHORT).show();
@@ -148,9 +170,10 @@ public class MainActivity extends Activity {
                 }
             });
         }
-    }
 
+    }
     private class SaveFeedList extends AsyncTask<List<ItemFeed>, Void, Void> {
+
         @Override
         protected Void doInBackground(List<ItemFeed>... items) {
             // Clear DB
@@ -172,14 +195,14 @@ public class MainActivity extends Activity {
             }
             return null;
         }
-
         @Override
         protected void onPostExecute(Void aVoid) {
             Toast.makeText(getApplicationContext(), "Feed saved", Toast.LENGTH_SHORT).show();
         }
-    }
 
+    }
     private class RestoreFeedList extends AsyncTask<Void, Void, Cursor> {
+
         @Override
         protected Cursor doInBackground(Void... voids) {
             Cursor cursor = db.getReadableDatabase().query(
@@ -193,7 +216,6 @@ public class MainActivity extends Activity {
             );
             return cursor;
         }
-
         @Override
         protected void onPostExecute(Cursor cursor) {
             List<ItemFeed> list = new ArrayList<>();
@@ -213,6 +235,7 @@ public class MainActivity extends Activity {
             cursor.close();
             Toast.makeText(getApplicationContext(), "Feed restored", Toast.LENGTH_SHORT).show();
         }
+
     }
 
     //TODO Opcional - pesquise outros meios de obter arquivos da internet
@@ -237,4 +260,13 @@ public class MainActivity extends Activity {
         }
         return rssFeed;
     }
+
+    private BroadcastReceiver onDownloadCompleteEvent = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            XmlFeedAdapter.ViewHolder holder = new XmlFeedAdapter.ViewHolder();
+            holder.item_action.setEnabled(true);
+            Toast.makeText(context, "Download finalizado!", Toast.LENGTH_LONG).show();
+        }
+    };
 }
