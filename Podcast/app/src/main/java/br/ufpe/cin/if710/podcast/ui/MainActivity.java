@@ -28,21 +28,22 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 
 import br.ufpe.cin.if710.podcast.R;
-import br.ufpe.cin.if710.podcast.db.PodcastDBHelper;
+import br.ufpe.cin.if710.podcast.db.PodcastProvider;
+import br.ufpe.cin.if710.podcast.db.PodcastProviderContract;
 import br.ufpe.cin.if710.podcast.domain.ItemFeed;
 import br.ufpe.cin.if710.podcast.domain.XmlFeedParser;
 import br.ufpe.cin.if710.podcast.service.DownloadService;
 import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 
+
 public class MainActivity extends Activity {
 
-    //ao fazer envio da resolucao, use este link no seu codigo!
     private final String RSS_FEED = "http://leopoldomt.com/if710/fronteirasdaciencia.xml";
-    //TODO teste com outros links de podcast
 
-    private PodcastDBHelper db;
+    private PodcastProvider provider;
     private ListView items;
     private boolean feedSaved;
 
@@ -51,12 +52,12 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        db = PodcastDBHelper.getInstance(this);
-        items = findViewById(R.id.items);
+        provider = new PodcastProvider();
+        // Para evitar null pointer exception
+        // e garantir que o DB foi instanciado.
+        provider.onCreate();
 
-        if (!hasInternetConnection() && feedSaved) {
-            new RestoreFeedList().execute();
-        }
+        items = findViewById(R.id.items);
     }
 
     @Override
@@ -87,155 +88,73 @@ public class MainActivity extends Activity {
             new DownloadXmlTask().execute(RSS_FEED);
         else
             new RestoreFeedList().execute();
+
     }
 
     @Override
     protected void onResume() {
         super.onResume();
         IntentFilter intentFilter = new IntentFilter(DownloadService.DOWNLOAD_COMPLETE);
-        LocalBroadcastManager.getInstance(this).registerReceiver(onDownloadCompleteEvent, intentFilter);
+        LocalBroadcastManager.getInstance(this)
+                .registerReceiver(onDownloadCompleteEvent, intentFilter);
     }
 
     @Override
     protected void onPause() {
         super.onPause();
-        LocalBroadcastManager.getInstance(this).unregisterReceiver(onDownloadCompleteEvent);
+        LocalBroadcastManager.getInstance(this)
+                .unregisterReceiver(onDownloadCompleteEvent);
     }
 
     @Override
     protected void onStop() {
         super.onStop();
         XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
-        adapter.clear();
+        if (adapter != null) adapter.clear();
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        db.close();
+//        db.close();
     }
 
+    /**
+     * Check if device is connected to the internet.
+     * @return Connected or disconnected.
+     */
     private boolean hasInternetConnection() {
-        ConnectivityManager connectivityManager = (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        ConnectivityManager connectivityManager =
+                (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
-    private class DownloadXmlTask extends AsyncTask<String, Void, List<ItemFeed>> {
 
-        @Override
-        protected void onPreExecute() {
-            Toast.makeText(getApplicationContext(), "iniciando...", Toast.LENGTH_SHORT).show();
-        }
+    /**
+     * Display list of objects once it gets downloaded
+     * or restored from DB.
+     * @param feed List of feed item.
+     */
+    private void setLayout(List<ItemFeed> feed) {
+        XmlFeedAdapter adapter = new XmlFeedAdapter(getApplicationContext(),
+                R.layout.itemlista, feed);
+        items.setAdapter(adapter);
+        items.setTextFilterEnabled(true);
+        items.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                XmlFeedAdapter adapter = (XmlFeedAdapter) parent.getAdapter();
+                ItemFeed item = adapter.getItem(position);
 
-        @Override
-        protected List<ItemFeed> doInBackground(String... params) {
-            List<ItemFeed> itemList = new ArrayList<>();
-            try {
-                itemList = XmlFeedParser.parse(getRssFeed(params[0]));
-                if (!feedSaved) {
-                    new SaveFeedList().execute(itemList);
-                    feedSaved = true;
-                }
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (XmlPullParserException e) {
-                e.printStackTrace();
+                Intent episodeDetail = new Intent(getApplicationContext(), EpisodeDetailActivity.class);
+                episodeDetail.putExtra("item_title", item.getTitle());
+                episodeDetail.putExtra("item_description", item.getDescription());
+                episodeDetail.putExtra("item_pubdate", item.getPubDate());
+                episodeDetail.putExtra("item_link", item.getLink());
+                episodeDetail.putExtra("item_dlink", item.getDownloadLink());
+                startActivity(episodeDetail);
             }
-            return itemList;
-        }
-        @Override
-        protected void onPostExecute(List<ItemFeed> feed) {
-            Toast.makeText(getApplicationContext(), "terminando...", Toast.LENGTH_SHORT).show();
-
-            //Adapter Personalizado
-            XmlFeedAdapter adapter = new XmlFeedAdapter(getApplicationContext(), R.layout.itemlista, feed);
-
-            //atualizar o list view
-            items.setAdapter(adapter);
-            items.setTextFilterEnabled(true);
-            items.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-                @Override
-                public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-                    XmlFeedAdapter adapter = (XmlFeedAdapter) parent.getAdapter();
-                    ItemFeed item = adapter.getItem(position);
-
-                    Intent intent = new Intent(getApplicationContext(), EpisodeDetailActivity.class);
-                    intent.putExtra("item_title", item.getTitle());
-                    intent.putExtra("item_description", item.getDescription());
-                    intent.putExtra("item_pubdate", item.getPubDate());
-                    intent.putExtra("item_link", item.getLink());
-                    intent.putExtra("item_dlink", item.getDownloadLink());
-
-                    startActivity(intent);
-                }
-            });
-        }
-
-    }
-    private class SaveFeedList extends AsyncTask<List<ItemFeed>, Void, Void> {
-
-        @Override
-        protected Void doInBackground(List<ItemFeed>... items) {
-            // Clear DB
-            db.getWritableDatabase().delete(PodcastDBHelper.DATABASE_TABLE, null, null);
-
-            ContentValues values = new ContentValues();
-            values.put(PodcastDBHelper.EPISODE_FILE_URI, "");
-            for (ItemFeed item : items[0]) {
-                values.put(PodcastDBHelper.EPISODE_TITLE, item.getTitle());
-                values.put(PodcastDBHelper.EPISODE_DESC, item.getDescription());
-                values.put(PodcastDBHelper.EPISODE_DATE, item.getPubDate());
-                values.put(PodcastDBHelper.EPISODE_LINK, item.getLink());
-                values.put(PodcastDBHelper.EPISODE_DOWNLOAD_LINK, item.getDownloadLink());
-                db.getWritableDatabase().insert(
-                        PodcastDBHelper.DATABASE_TABLE,
-                        null,
-                        values
-                );
-            }
-            return null;
-        }
-        @Override
-        protected void onPostExecute(Void aVoid) {
-            Toast.makeText(getApplicationContext(), "Feed saved", Toast.LENGTH_SHORT).show();
-        }
-
-    }
-    private class RestoreFeedList extends AsyncTask<Void, Void, Cursor> {
-
-        @Override
-        protected Cursor doInBackground(Void... voids) {
-            Cursor cursor = db.getReadableDatabase().query(
-                    PodcastDBHelper.DATABASE_TABLE,
-                    PodcastDBHelper.columns,
-                    null,
-                    null,
-                    null,
-                    null,
-                    PodcastDBHelper._ID
-            );
-            return cursor;
-        }
-        @Override
-        protected void onPostExecute(Cursor cursor) {
-            List<ItemFeed> list = new ArrayList<>();
-            ItemFeed item;
-            for (cursor.moveToFirst(); !cursor.isAfterLast(); cursor.moveToNext()) {
-                item = new ItemFeed(
-                        cursor.getString(cursor.getColumnIndex(PodcastDBHelper.EPISODE_TITLE)),
-                        cursor.getString(cursor.getColumnIndex(PodcastDBHelper.EPISODE_DESC)),
-                        cursor.getString(cursor.getColumnIndex(PodcastDBHelper.EPISODE_DATE)),
-                        cursor.getString(cursor.getColumnIndex(PodcastDBHelper.EPISODE_LINK)),
-                        cursor.getString(cursor.getColumnIndex(PodcastDBHelper.EPISODE_DOWNLOAD_LINK))
-                );
-                list.add(item);
-            }
-            XmlFeedAdapter adapter = new XmlFeedAdapter(getApplicationContext(), R.layout.itemlista, list);
-            items.setAdapter(adapter);
-            cursor.close();
-            Toast.makeText(getApplicationContext(), "Feed restored", Toast.LENGTH_SHORT).show();
-        }
-
+        });
     }
 
     //TODO Opcional - pesquise outros meios de obter arquivos da internet
@@ -264,9 +183,112 @@ public class MainActivity extends Activity {
     private BroadcastReceiver onDownloadCompleteEvent = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            XmlFeedAdapter.ViewHolder holder = new XmlFeedAdapter.ViewHolder();
-            holder.item_action.setEnabled(true);
-            Toast.makeText(context, "Download finalizado!", Toast.LENGTH_LONG).show();
+            int position = intent.getExtras().getInt("position");
+            XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
+            adapter.resetButtonState(position);
+            print("Download finalizado!");
         }
     };
+
+    private void print(String msg) {
+        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
+    }
+
+    private class DownloadXmlTask extends AsyncTask<String, Void, List<ItemFeed>> {
+
+        @Override
+        protected List<ItemFeed> doInBackground(String... params) {
+            List<ItemFeed> itemList = new ArrayList<>();
+            try {
+                itemList = XmlFeedParser.parse(getRssFeed(params[0]));
+            } catch (IOException e) {
+                e.printStackTrace();
+            } catch (XmlPullParserException e) {
+                e.printStackTrace();
+            }
+            return itemList;
+        }
+        @Override
+        protected void onPostExecute(List<ItemFeed> feed) {
+            if (!feedSaved) {
+                try {
+                    // Avoid multithreading concurrency
+                    // Wait the thread to finish
+                    new SaveFeedList().execute(feed).get();
+                } catch (InterruptedException e) {
+                    e.printStackTrace();
+                } catch (ExecutionException e) {
+                    e.printStackTrace();
+                }
+                feedSaved = true;
+            }
+            setLayout(feed);
+            print("Feed updated");
+        }
+
+    }
+
+    private class SaveFeedList extends AsyncTask<List<ItemFeed>, Void, Void> {
+
+        @Override
+        protected Void doInBackground(List<ItemFeed>... items) {
+
+            // Clear DB except downloaded files.
+            String where = PodcastProviderContract.EPISODE_URI + " LIKE ?";
+            String[] whereArgs = { "" };
+            provider.delete(PodcastProviderContract.EPISODE_LIST_URI, where, whereArgs);
+
+            // Refresh podcast list
+            ContentValues values = new ContentValues();
+            values.put(PodcastProviderContract.EPISODE_URI, "");
+            for (ItemFeed item : items[0]) {
+                values.put(PodcastProviderContract.TITLE, item.getTitle());
+                values.put(PodcastProviderContract.DESCRIPTION, item.getDescription());
+                values.put(PodcastProviderContract.DATE, item.getPubDate());
+                values.put(PodcastProviderContract.EPISODE_LINK, item.getLink());
+                values.put(PodcastProviderContract.DOWNLOAD_LINK, item.getDownloadLink());
+                provider.insert(PodcastProviderContract.EPISODE_LIST_URI, values);
+            }
+
+            return null;
+        }
+        @Override
+        protected void onPostExecute(Void aVoid) {
+            print("Feed salvo");
+        }
+
+    }
+
+    private class RestoreFeedList extends AsyncTask<Void, Void, Cursor> {
+
+        @Override
+        protected Cursor doInBackground(Void... voids) {
+            return provider.query(
+                    PodcastProviderContract.EPISODE_LIST_URI,
+                    PodcastProviderContract.ALL_COLUMNS,
+                    null,
+                    null,
+                    PodcastProviderContract._ID
+            );
+        }
+        @Override
+        protected void onPostExecute(Cursor cursor) {
+            List<ItemFeed> list = new ArrayList<>();
+            ItemFeed item;
+            for (cursor.moveToFirst(); !cursor.isAfterLast(); cursor.moveToNext()) {
+                item = new ItemFeed(
+                        cursor.getString(cursor.getColumnIndex(PodcastProviderContract.TITLE)),
+                        cursor.getString(cursor.getColumnIndex(PodcastProviderContract.DESCRIPTION)),
+                        cursor.getString(cursor.getColumnIndex(PodcastProviderContract.DATE)),
+                        cursor.getString(cursor.getColumnIndex(PodcastProviderContract.EPISODE_LINK)),
+                        cursor.getString(cursor.getColumnIndex(PodcastProviderContract.DOWNLOAD_LINK))
+                );
+                list.add(item);
+            }
+            setLayout(list);
+            cursor.close();
+            print("Feed restaurado");
+        }
+
+    }
 }

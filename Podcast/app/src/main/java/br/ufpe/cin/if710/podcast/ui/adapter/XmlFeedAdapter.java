@@ -9,7 +9,6 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import br.ufpe.cin.if710.podcast.R;
 import br.ufpe.cin.if710.podcast.domain.ItemFeed;
@@ -17,11 +16,16 @@ import br.ufpe.cin.if710.podcast.service.DownloadService;
 
 public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
 
-    int linkResource;
+    private int linkResource;
+
+    // btn_state[state]
+    // state 0: Baixar | state 1: Baixando | state 2: Ouvir | state 3: Parar
+    private int[] btn_state;
 
     public XmlFeedAdapter(Context context, int resource, List<ItemFeed> objects) {
         super(context, resource, objects);
         linkResource = resource;
+        btn_state = new int[objects.size()];
     }
 
     /**
@@ -51,15 +55,15 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
 	/**/
 
     //http://developer.android.com/training/improving-layouts/smooth-scrolling.html#ViewHolder
-    public static class ViewHolder {
-        public TextView item_title;
-        public TextView item_date;
-        public TextView item_action;
+    static class ViewHolder {
+        TextView item_title;
+        TextView item_date;
+        TextView item_action;
     }
 
     @Override
     public View getView(final int position, View convertView, ViewGroup parent) {
-        ViewHolder holder;
+        final ViewHolder holder;
         if (convertView == null) {
             convertView = View.inflate(getContext(), linkResource, null);
             holder = new ViewHolder();
@@ -72,14 +76,50 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
         }
         holder.item_title.setText(getItem(position).getTitle());
         holder.item_date.setText(getItem(position).getPubDate());
+        switch (btn_state[position]) {
+            case 0:
+                holder.item_action.setText("Baixar");
+                holder.item_action.setEnabled(true);
+                break;
+            case 1:
+                holder.item_action.setText("Baixando");
+                holder.item_action.setEnabled(false);
+                break;
+            case 2:
+                holder.item_action.setText("Ouvir");
+                holder.item_action.setEnabled(true);
+                break;
+            case 3:
+                holder.item_action.setText("Parar");
+                holder.item_action.setEnabled(true);
+                break;
+        }
         holder.item_action.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent downloadService = new Intent(getContext(), DownloadService.class);
-                downloadService.setData(Uri.parse(getItem(position).getDownloadLink()));
-                getContext().startService(downloadService);
+                switch (btn_state[position]) {
+                    case 0:
+                        holder.item_action.setText("Baixando");
+                        holder.item_action.setEnabled(false);
+                        btn_state[position] = 1;
+
+                        Intent downloadService = new Intent(getContext(), DownloadService.class);
+                        downloadService.setData(Uri.parse(getItem(position).getDownloadLink()));
+                        downloadService.putExtra("position", position);
+                        getContext().startService(downloadService);
+                        break;
+                    case 2:
+                        break;
+                    case 3:
+                        break;
+                }
             }
         });
         return convertView;
+    }
+
+    public void resetButtonState(int position) {
+        btn_state[position] = 2;
+        this.notifyDataSetChanged();    // Notify adapter
     }
 }

@@ -11,7 +11,7 @@ public class PodcastProvider extends ContentProvider {
     @Override
     public boolean onCreate() {
         db = PodcastDBHelper.getInstance(getContext());
-        return true;
+        return db != null;
     }
 
     private boolean uriMatchesEpisodes(Uri uri) {
@@ -25,9 +25,8 @@ public class PodcastProvider extends ContentProvider {
     @Override
     public Cursor query(Uri uri, String[] projection, String selection,
                         String[] selectionArgs, String sortOrder) {
-        Cursor cursor;
         if (uriMatchesEpisodes(uri)) {
-            cursor = db.getReadableDatabase().query(
+            return db.getReadableDatabase().query(
                     PodcastProviderContract.EPISODE_TABLE,
                     projection,
                     selection,
@@ -36,30 +35,47 @@ public class PodcastProvider extends ContentProvider {
                     null,
                     sortOrder
             );
-            return cursor;
         }
         else throw new IllegalArgumentException("Uri invalida!");
     }
 
-    // A PRINCIPIO SO SERA FORNECIDO QUERY E MIME TYPE.
-
     @Override
     public Uri insert(Uri uri, ContentValues values) {
-        // TODO: Implement this to handle requests to insert a new row.
-        throw new UnsupportedOperationException("Not yet implemented");
+        if (uriMatchesEpisodes(uri)) {
+            Long id = db.getWritableDatabase().insert(
+                    PodcastProviderContract.EPISODE_TABLE,
+                    null,
+                    values
+            );
+            return Uri.withAppendedPath(PodcastProviderContract.EPISODE_LIST_URI, Long.toString(id));
+        }
+        else throw new IllegalArgumentException("Uri invalida!");
     }
 
     @Override
     public int delete(Uri uri, String selection, String[] selectionArgs) {
-        // TODO: Implement this to handle requests to delete one or more rows.
-        throw new UnsupportedOperationException("Not yet implemented");
+        if (uriMatchesEpisodes(uri)) {
+            return db.getWritableDatabase().delete(
+                    PodcastProviderContract.EPISODE_TABLE,
+                    selection,
+                    selectionArgs
+            );
+        }
+        else throw new IllegalArgumentException("Uri invalida!");
     }
 
     @Override
     public int update(Uri uri, ContentValues values, String selection,
                       String[] selectionArgs) {
-        // TODO: Implement this to handle requests to update one or more rows.
-        throw new UnsupportedOperationException("Not yet implemented");
+        if (uriMatchesEpisodes(uri)) {
+            return db.getWritableDatabase().update(
+                    PodcastProviderContract.EPISODE_TABLE,
+                    values,
+                    selection,
+                    selectionArgs
+            );
+        }
+        else throw new IllegalArgumentException("Uri invalida!");
     }
 
     @Override
