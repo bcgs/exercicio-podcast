@@ -232,6 +232,7 @@ public class MainActivity extends Activity {
             }
             return itemList;
         }
+
         @Override
         protected void onPostExecute(List<ItemFeed> feed) {
             if (!feedSaved) {
@@ -246,10 +247,7 @@ public class MainActivity extends Activity {
                 }
                 feedSaved = true;
             }
-            setLayout(feed);
-            print("Feed updated");
         }
-
     }
 
     private class SaveFeedList extends AsyncTask<List<ItemFeed>, Void, Void> {
@@ -260,7 +258,8 @@ public class MainActivity extends Activity {
             // Clear DB except downloaded files.
             String where = PodcastProviderContract.EPISODE_URI + " LIKE ?";
             String[] whereArgs = { "" };
-            provider.delete(PodcastProviderContract.EPISODE_LIST_URI, where, whereArgs);
+            int qtd = provider.delete(PodcastProviderContract.EPISODE_LIST_URI, where, whereArgs);
+            Log.e("==>", String.valueOf(qtd));
 
             // Refresh podcast list
             ContentValues values = new ContentValues();
@@ -273,14 +272,14 @@ public class MainActivity extends Activity {
                 values.put(PodcastProviderContract.DOWNLOAD_LINK, item.getDownloadLink());
                 provider.insert(PodcastProviderContract.EPISODE_LIST_URI, values);
             }
-
             return null;
         }
+
         @Override
         protected void onPostExecute(Void aVoid) {
-            print("Feed salvo");
+            new RestoreFeedList().execute();
+            Log.e("==>", "Feed salvo");
         }
-
     }
 
     private class RestoreFeedList extends AsyncTask<Void, Void, Cursor> {
@@ -295,6 +294,7 @@ public class MainActivity extends Activity {
                     PodcastProviderContract._ID
             );
         }
+
         @Override
         protected void onPostExecute(Cursor cursor) {
             List<ItemFeed> list = new ArrayList<>();
@@ -311,9 +311,8 @@ public class MainActivity extends Activity {
             }
             setLayout(list);
             cursor.close();
-            print("Feed restaurado");
+            Log.e("==>", "Feed restaurado");
         }
-
     }
 
     private class UpdateUriTask extends AsyncTask<String, Void, Void> {
