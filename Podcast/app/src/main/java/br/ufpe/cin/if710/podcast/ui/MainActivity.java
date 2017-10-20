@@ -23,9 +23,17 @@ import android.widget.Toast;
 
 import org.xmlpull.v1.XmlPullParserException;
 
+import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -44,6 +52,7 @@ import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 public class MainActivity extends Activity {
 
     private final String RSS_FEED = "http://leopoldomt.com/if710/fronteirasdaciencia.xml";
+    private final String URI_FILE = "listofuris.pc";
 
     private PodcastProvider provider;
     private ListView items;
@@ -206,6 +215,10 @@ public class MainActivity extends Activity {
             String dlink = intent.getStringExtra("downloadlink");
             new UpdateUriTask().execute(dlink, fileuri.toString());
 
+            try {
+                saveUriFile(dlink);
+            } catch(FileNotFoundException ie) {}
+
             // Atualizar estado do botao download
             int position = intent.getExtras().getInt("position");
             XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
@@ -218,8 +231,28 @@ public class MainActivity extends Activity {
         Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
     }
 
-    private class DownloadXmlTask extends AsyncTask<String, Void, List<ItemFeed>> {
+    private void saveUriFile(String input) throws FileNotFoundException {
+        FileOutputStream fos = openFileOutput(URI_FILE, MODE_APPEND);
+        PrintWriter pw = new PrintWriter(new BufferedWriter(new OutputStreamWriter(fos)));
+        pw.write(input + '\n');
+        pw.close();
+    }
 
+    private List<String> readUriFile() throws IOException {
+        List<String> uris = new ArrayList<>();
+        FileInputStream fis = openFileInput(URI_FILE);
+        BufferedReader br = new BufferedReader(new InputStreamReader(fis));
+        for (String row; (row = br.readLine()) != null; ) {
+            uris.add(row);
+        }
+        br.close();
+        if (uris.size() != 0)
+            return uris;
+        else
+            return null;
+    }
+
+    private class DownloadXmlTask extends AsyncTask<String, Void, List<ItemFeed>> {
         @Override
         protected List<ItemFeed> doInBackground(String... params) {
             List<ItemFeed> itemList = new ArrayList<>();
@@ -251,9 +284,13 @@ public class MainActivity extends Activity {
     }
 
     private class SaveFeedList extends AsyncTask<List<ItemFeed>, Void, Void> {
+        List<String> uris = null;
 
         @Override
         protected Void doInBackground(List<ItemFeed>... items) {
+            try {
+                uris = readUriFile();
+            } catch (IOException ie) {}
 
             // Clear DB except downloaded files.
             String where = PodcastProviderContract.EPISODE_URI + " LIKE ?";
@@ -265,6 +302,8 @@ public class MainActivity extends Activity {
             ContentValues values = new ContentValues();
             values.put(PodcastProviderContract.EPISODE_URI, "");
             for (ItemFeed item : items[0]) {
+                if (hasDuplicate(item.getDownloadLink()))
+                    continue;
                 values.put(PodcastProviderContract.TITLE, item.getTitle());
                 values.put(PodcastProviderContract.DESCRIPTION, item.getDescription());
                 values.put(PodcastProviderContract.DATE, item.getPubDate());
@@ -275,6 +314,14 @@ public class MainActivity extends Activity {
             return null;
         }
 
+        private boolean hasDuplicate(String dlink) {
+            if(uris != null)
+                for (int i = 0; i < uris.size(); ++i)
+                    if (dlink.equals(uris.get(i)))
+                        return true;
+            return false;
+        }
+
         @Override
         protected void onPostExecute(Void aVoid) {
             new RestoreFeedList().execute();
@@ -283,7 +330,6 @@ public class MainActivity extends Activity {
     }
 
     private class RestoreFeedList extends AsyncTask<Void, Void, Cursor> {
-
         @Override
         protected Cursor doInBackground(Void... voids) {
             return provider.query(
