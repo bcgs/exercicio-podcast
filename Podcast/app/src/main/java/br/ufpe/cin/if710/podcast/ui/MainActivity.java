@@ -9,6 +9,7 @@ import android.content.IntentFilter;
 import android.database.Cursor;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
+import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.content.LocalBroadcastManager;
@@ -37,7 +38,6 @@ import br.ufpe.cin.if710.podcast.domain.ItemFeed;
 import br.ufpe.cin.if710.podcast.domain.XmlFeedParser;
 import br.ufpe.cin.if710.podcast.service.DownloadService;
 import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
-
 
 public class MainActivity extends Activity {
 
@@ -183,6 +183,12 @@ public class MainActivity extends Activity {
     private BroadcastReceiver onDownloadCompleteEvent = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
+            // Atualizar no bd URI do arquivo baixado
+            Uri fileuri = (Uri) intent.getExtras().get("uri");
+            String dlink = intent.getStringExtra("downloadlink");
+            new UpdateUriTask().execute(dlink, fileuri.toString());
+
+            // Atualizar estado do botao download
             int position = intent.getExtras().getInt("position");
             XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
             adapter.resetButtonState(position);
@@ -290,5 +296,22 @@ public class MainActivity extends Activity {
             print("Feed restaurado");
         }
 
+    }
+
+    private class UpdateUriTask extends AsyncTask<String, Void, Void> {
+        @Override
+        protected Void doInBackground(String... params) {
+            String selection = PodcastProviderContract.DOWNLOAD_LINK + " LIKE ?";
+            String[] selectionArgs = { params[0] };
+            ContentValues values = new ContentValues();
+            values.put(PodcastProviderContract.EPISODE_URI, params[1]);
+            provider.update(
+                    PodcastProviderContract.EPISODE_LIST_URI,
+                    values,
+                    selection,
+                    selectionArgs
+            );
+            return null;
+        }
     }
 }

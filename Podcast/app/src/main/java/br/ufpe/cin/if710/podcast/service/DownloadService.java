@@ -2,6 +2,7 @@ package br.ufpe.cin.if710.podcast.service;
 
 import android.app.IntentService;
 import android.content.Intent;
+import android.net.Uri;
 import android.os.Environment;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
@@ -55,6 +56,8 @@ public class DownloadService extends IntentService {
             int position = intent.getExtras().getInt("position");
             Intent broadcastIntent = new Intent(DOWNLOAD_COMPLETE);
             broadcastIntent.putExtra("position", position);
+            broadcastIntent.putExtra("downloadlink", intent.getData().toString());
+            broadcastIntent.putExtra("uri", Uri.fromFile(file));
             LocalBroadcastManager.getInstance(this).sendBroadcast(broadcastIntent);
 
         } catch (IOException ie) {
