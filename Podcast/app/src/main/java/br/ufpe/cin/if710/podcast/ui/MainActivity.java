@@ -13,6 +13,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.content.LocalBroadcastManager;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -37,6 +38,7 @@ import br.ufpe.cin.if710.podcast.db.PodcastProviderContract;
 import br.ufpe.cin.if710.podcast.domain.ItemFeed;
 import br.ufpe.cin.if710.podcast.domain.XmlFeedParser;
 import br.ufpe.cin.if710.podcast.service.DownloadService;
+import br.ufpe.cin.if710.podcast.service.RssPlayerService;
 import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 
 public class MainActivity extends Activity {
@@ -86,14 +88,18 @@ public class MainActivity extends Activity {
         return super.onOptionsItemSelected(item);
     }
 
-//    @Override
-//    protected void onStart() {
-//        super.onStart();
-//        if (hasInternetConnection())
-//            new DownloadXmlTask().execute(RSS_FEED);
-//        else
-//            new RestoreFeedList().execute();
-//    }
+    @Override
+    protected void onStart() {
+        super.onStart();
+        XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
+        if (adapter != null && adapter.currentEpisode != -1) {
+            Intent playerIntent = new Intent(this, RssPlayerService.class);
+            adapter.isBound = adapter.getContext().bindService(playerIntent,
+                    adapter.sConn, BIND_AUTO_CREATE);
+            adapter.isBound = true;
+            Log.i("==>", "Binding estabelecido");
+        }
+    }
 
     @Override
     protected void onResume() {
@@ -110,12 +116,26 @@ public class MainActivity extends Activity {
                 .unregisterReceiver(onDownloadCompleteEvent);
     }
 
-//    @Override
-//    protected void onStop() {
-//        super.onStop();
-//        XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
-//        if (adapter != null) adapter.clear();
-//    }
+    @Override
+    protected void onStop() {
+        super.onStop();
+        XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
+        if (adapter.isBound) {
+            adapter.getContext().unbindService(adapter.sConn);
+            adapter.rssPlayer = null;
+            adapter.isBound = false;
+            Log.i("==>", "Binding interrompido");
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        if (isFinishing()) {
+            Intent playerIntent = new Intent(this, RssPlayerService.class);
+            stopService(playerIntent);
+        }
+    }
 
     /**
      * Check if device is connected to the internet.

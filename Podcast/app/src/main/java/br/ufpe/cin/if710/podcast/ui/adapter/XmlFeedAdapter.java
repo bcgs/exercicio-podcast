@@ -3,10 +3,13 @@ package br.ufpe.cin.if710.podcast.ui.adapter;
 import java.io.File;
 import java.util.List;
 
+import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.ServiceConnection;
 import android.net.Uri;
 import android.os.Environment;
+import android.os.IBinder;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
@@ -21,9 +24,14 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
 
     private int linkResource;
     private Intent playService;
+    public RssPlayerService rssPlayer;
+    public boolean isBound;
+    public int currentEpisode = -1;
+
+    File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
 
     // btn_state[state]
-    // state 0: Baixar | state 1: Baixando | state 2: Ouvir | state 3: Parar
+    // state 0: Baixar | state 1: Baixando | state 2: Ouvir | state 3: Pausar
     private int[] btn_state;
 
     public XmlFeedAdapter(Context context, int resource, List<ItemFeed> objects) {
@@ -94,7 +102,7 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
                 holder.item_action.setEnabled(true);
                 break;
             case 3:
-                holder.item_action.setText("Parar");
+                holder.item_action.setText("Pausar");
                 holder.item_action.setEnabled(true);
                 break;
         }
@@ -115,27 +123,40 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
                         getContext().startService(downloadService);
                         break;
                     case 2:
-                        holder.item_action.setText("Parar");
+                        holder.item_action.setText("Pausar");
                         holder.item_action.setEnabled(true);
                         btn_state[position] = 3;
 
-                        // Get file uri in order to play
-                        File path = Environment
-                                .getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
-                        Uri fileuri = Uri.parse(getItem(position).getDownloadLink());
-                        File file = new File(path, fileuri.getLastPathSegment());
+                        // If there is not bound connection...
+                        if (!isBound) {
+                            Intent playerIntent = new Intent(getContext(), RssPlayerService.class);
+                            isBound = getContext().bindService(playerIntent, sConn, Context.BIND_AUTO_CREATE);
 
-                        // Call player service
-                        playService = new Intent(getContext(), RssPlayerService.class);
-                        playService.putExtra("fileuri", Uri.fromFile(file).toString());
-                        getContext().startService(playService);
+                            Uri fileuri = Uri.parse(getItem(position).getDownloadLink());
+                            File file = new File(path, fileuri.getLastPathSegment());
+                            playEpisode(file);
+                        } else {
+                            if (position == currentEpisode) rssPlayer.play();
+                            else {
+                                // Stop last episode and set button to 'Ouvir'
+                                rssPlayer.stop();
+                                resetButtonState(currentEpisode);
+
+                                // Play new episode
+                                Uri fileuri = Uri.parse(getItem(position).getDownloadLink());
+                                File file = new File(path, fileuri.getLastPathSegment());
+                                playEpisode(file);
+                            }
+                        }
+                        // Update current episode status
+                        currentEpisode = position;
                         break;
                     case 3:
                         holder.item_action.setText("Ouvir");
                         holder.item_action.setEnabled(true);
                         btn_state[position] = 2;
 
-                        getContext().stopService(playService);
+                        rssPlayer.pause();
                         break;
                 }
             }
@@ -143,8 +164,39 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
         return convertView;
     }
 
+    /**
+     * Use this function to update the status of a button.
+     * @param position Position of the button to be updated.
+     */
     public void resetButtonState(int position) {
         btn_state[position] = 2;
         this.notifyDataSetChanged();    // Notify adapter
     }
+
+    /**
+     * Set bind connection using this ServiceConnection.
+     */
+    public ServiceConnection sConn = new ServiceConnection() {
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {
+            rssPlayer = ((RssPlayerService.RssBinder) service).getService();
+        }
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            rssPlayer = null;
+            isBound = false;
+        }
+    };
+
+    /**
+     * Start RssPlayer.
+     * @param file File location in order to get its uri.
+     */
+    private void playEpisode(File file) {
+        playService = new Intent(getContext(), RssPlayerService.class);
+        playService.putExtra("fileuri", Uri.fromFile(file).toString());
+        getContext().startService(playService);
+    }
+
 }

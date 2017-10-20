@@ -6,6 +6,7 @@ import android.app.Service;
 import android.content.Intent;
 import android.media.MediaPlayer;
 import android.net.Uri;
+import android.os.Binder;
 import android.os.IBinder;
 
 import br.ufpe.cin.if710.podcast.ui.MainActivity;
@@ -14,6 +15,7 @@ public class RssPlayerService extends Service {
     private static final int NOTIFICATION_ID = 1;
     private MediaPlayer player;
     private int id;
+    private final IBinder binder = new RssBinder();
 
     @Override
     public void onCreate() {
@@ -46,7 +48,7 @@ public class RssPlayerService extends Service {
                     stopSelf(id);
                 }
             });
-            player.start();
+            play();
         }
         return START_NOT_STICKY;
     }
@@ -54,15 +56,29 @@ public class RssPlayerService extends Service {
     @Override
     public void onDestroy() {
         super.onDestroy();
-        if (player != null) {
-            player.stop();
-            player.release();
-        }
+        if (player != null) player.release();
     }
 
     @Override
     public IBinder onBind(Intent intent) {
-        // TODO: Return the communication channel to the service.
-        throw new UnsupportedOperationException("Not yet implemented");
+        return binder;
+    }
+
+    public void play() {
+        if (player != null) player.start();
+    }
+
+    public void pause() {
+        if (player != null) player.pause();
+    }
+
+    public void stop() {
+        if (player != null) player.stop();
+    }
+
+    public class RssBinder extends Binder {
+        public RssPlayerService getService() {
+            return RssPlayerService.this;
+        }
     }
 }
