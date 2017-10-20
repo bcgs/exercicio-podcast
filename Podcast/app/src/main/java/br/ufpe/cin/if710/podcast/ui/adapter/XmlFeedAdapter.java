@@ -1,10 +1,12 @@
 package br.ufpe.cin.if710.podcast.ui.adapter;
 
+import java.io.File;
 import java.util.List;
 
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Environment;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ArrayAdapter;
@@ -13,10 +15,12 @@ import android.widget.TextView;
 import br.ufpe.cin.if710.podcast.R;
 import br.ufpe.cin.if710.podcast.domain.ItemFeed;
 import br.ufpe.cin.if710.podcast.service.DownloadService;
+import br.ufpe.cin.if710.podcast.service.RssPlayerService;
 
 public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
 
     private int linkResource;
+    private Intent playService;
 
     // btn_state[state]
     // state 0: Baixar | state 1: Baixando | state 2: Ouvir | state 3: Parar
@@ -99,18 +103,39 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
             public void onClick(View v) {
                 switch (btn_state[position]) {
                     case 0:
+                        // Next step
                         holder.item_action.setText("Baixando");
                         holder.item_action.setEnabled(false);
                         btn_state[position] = 1;
 
+                        // Call download service
                         Intent downloadService = new Intent(getContext(), DownloadService.class);
                         downloadService.setData(Uri.parse(getItem(position).getDownloadLink()));
                         downloadService.putExtra("position", position);
                         getContext().startService(downloadService);
                         break;
                     case 2:
+                        holder.item_action.setText("Parar");
+                        holder.item_action.setEnabled(true);
+                        btn_state[position] = 3;
+
+                        // Get file uri in order to play
+                        File path = Environment
+                                .getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                        Uri fileuri = Uri.parse(getItem(position).getDownloadLink());
+                        File file = new File(path, fileuri.getLastPathSegment());
+
+                        // Call player service
+                        playService = new Intent(getContext(), RssPlayerService.class);
+                        playService.putExtra("fileuri", Uri.fromFile(file).toString());
+                        getContext().startService(playService);
                         break;
                     case 3:
+                        holder.item_action.setText("Ouvir");
+                        holder.item_action.setEnabled(true);
+                        btn_state[position] = 2;
+
+                        getContext().stopService(playService);
                         break;
                 }
             }

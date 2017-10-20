@@ -58,6 +58,11 @@ public class MainActivity extends Activity {
         provider.onCreate();
 
         items = findViewById(R.id.items);
+
+        if (hasInternetConnection())
+            new DownloadXmlTask().execute(RSS_FEED);
+        else
+            new RestoreFeedList().execute();
     }
 
     @Override
@@ -81,15 +86,14 @@ public class MainActivity extends Activity {
         return super.onOptionsItemSelected(item);
     }
 
-    @Override
-    protected void onStart() {
-        super.onStart();
-        if (hasInternetConnection())
-            new DownloadXmlTask().execute(RSS_FEED);
-        else
-            new RestoreFeedList().execute();
-
-    }
+//    @Override
+//    protected void onStart() {
+//        super.onStart();
+//        if (hasInternetConnection())
+//            new DownloadXmlTask().execute(RSS_FEED);
+//        else
+//            new RestoreFeedList().execute();
+//    }
 
     @Override
     protected void onResume() {
@@ -106,18 +110,12 @@ public class MainActivity extends Activity {
                 .unregisterReceiver(onDownloadCompleteEvent);
     }
 
-    @Override
-    protected void onStop() {
-        super.onStop();
-        XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
-        if (adapter != null) adapter.clear();
-    }
-
-    @Override
-    protected void onDestroy() {
-        super.onDestroy();
-//        db.close();
-    }
+//    @Override
+//    protected void onStop() {
+//        super.onStop();
+//        XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
+//        if (adapter != null) adapter.clear();
+//    }
 
     /**
      * Check if device is connected to the internet.
@@ -183,7 +181,7 @@ public class MainActivity extends Activity {
     private BroadcastReceiver onDownloadCompleteEvent = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            // Atualizar no bd URI do arquivo baixado
+            // Atualizar no bd o URI do arquivo baixado
             Uri fileuri = (Uri) intent.getExtras().get("uri");
             String dlink = intent.getStringExtra("downloadlink");
             new UpdateUriTask().execute(dlink, fileuri.toString());
