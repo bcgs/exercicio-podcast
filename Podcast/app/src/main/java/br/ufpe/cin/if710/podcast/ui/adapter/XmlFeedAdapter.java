@@ -140,7 +140,7 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
                             else {
                                 // Stop last episode and set button to 'Ouvir'
                                 rssPlayer.stop();
-                                resetButtonState(currentEpisode);
+                                setButtonToListen(currentEpisode);
 
                                 // Play new episode
                                 Uri fileuri = Uri.parse(getItem(position).getDownloadLink());
@@ -168,7 +168,7 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
      * Use this function to update the status of a button.
      * @param position Position of the button to be updated.
      */
-    public void resetButtonState(int position) {
+    public void setButtonToListen(int position) {
         btn_state[position] = 2;
         this.notifyDataSetChanged();    // Notify adapter
     }

@@ -10,6 +10,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class XmlFeedParser {
+    public static String lastBuildDate = null;
 
     public static List<ItemFeed> parse(String xmlFeed) throws XmlPullParserException, IOException {
         XmlPullParserFactory factory = XmlPullParserFactory.newInstance();
@@ -46,7 +47,9 @@ public class XmlFeedParser {
                 continue;
             }
             String name = parser.getName();
-            if (name.equals("item")) {
+            if (name.equals("lastBuildDate")) {
+                lastBuildDate = readData(parser, "lastBuildDate");
+            } else if (name.equals("item")) {
                 items.add(readItem(parser));
             } else {
                 skip(parser);

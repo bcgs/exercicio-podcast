@@ -13,7 +13,6 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.content.LocalBroadcastManager;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -53,8 +52,12 @@ public class MainActivity extends Activity {
 
     private final String RSS_FEED = "http://leopoldomt.com/if710/fronteirasdaciencia.xml";
     private final String URI_FILE = "listofuris.pc";
+    private String lastBuildDate;
 
     private PodcastProvider provider;
+    private XmlFeedAdapter adapter;
+    private List<String> uris;
+
     private ListView items;
     private boolean feedSaved;
 
@@ -100,13 +103,11 @@ public class MainActivity extends Activity {
     @Override
     protected void onStart() {
         super.onStart();
-        XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
         if (adapter != null && adapter.currentEpisode != -1) {
             Intent playerIntent = new Intent(this, RssPlayerService.class);
             adapter.isBound = adapter.getContext().bindService(playerIntent,
                     adapter.sConn, BIND_AUTO_CREATE);
             adapter.isBound = true;
-            Log.i("==>", "Binding estabelecido");
         }
     }
 
@@ -128,12 +129,10 @@ public class MainActivity extends Activity {
     @Override
     protected void onStop() {
         super.onStop();
-        XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
         if (adapter.isBound) {
             adapter.getContext().unbindService(adapter.sConn);
             adapter.rssPlayer = null;
             adapter.isBound = false;
-            Log.i("==>", "Binding interrompido");
         }
     }
 
@@ -163,9 +162,15 @@ public class MainActivity extends Activity {
      * @param feed List of feed item.
      */
     private void setLayout(List<ItemFeed> feed) {
-        XmlFeedAdapter adapter = new XmlFeedAdapter(getApplicationContext(),
-                R.layout.itemlista, feed);
+        adapter = new XmlFeedAdapter(getApplicationContext(), R.layout.itemlista, feed);
         items.setAdapter(adapter);
+
+        // Modificar estado dos botoes
+        // dos episodios ja baixados
+        if (uris != null)
+            for (int i = uris.size()-1; i >= 0; i--)
+                adapter.setButtonToListen(i);
+
         items.setTextFilterEnabled(true);
         items.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
@@ -221,8 +226,7 @@ public class MainActivity extends Activity {
 
             // Atualizar estado do botao download
             int position = intent.getExtras().getInt("position");
-            XmlFeedAdapter adapter = (XmlFeedAdapter) items.getAdapter();
-            adapter.resetButtonState(position);
+            adapter.setButtonToListen(position);
             print("Download finalizado!");
         }
     };
@@ -258,6 +262,7 @@ public class MainActivity extends Activity {
             List<ItemFeed> itemList = new ArrayList<>();
             try {
                 itemList = XmlFeedParser.parse(getRssFeed(params[0]));
+                lastBuildDate = XmlFeedParser.lastBuildDate;
             } catch (IOException e) {
                 e.printStackTrace();
             } catch (XmlPullParserException e) {
@@ -284,19 +289,16 @@ public class MainActivity extends Activity {
     }
 
     private class SaveFeedList extends AsyncTask<List<ItemFeed>, Void, Void> {
-        List<String> uris = null;
-
         @Override
         protected Void doInBackground(List<ItemFeed>... items) {
             try {
                 uris = readUriFile();
-            } catch (IOException ie) {}
+            } catch (IOException ie) { ie.printStackTrace(); }
 
             // Clear DB except downloaded files.
             String where = PodcastProviderContract.EPISODE_URI + " LIKE ?";
             String[] whereArgs = { "" };
-            int qtd = provider.delete(PodcastProviderContract.EPISODE_LIST_URI, where, whereArgs);
-            Log.e("==>", String.valueOf(qtd));
+            provider.delete(PodcastProviderContract.EPISODE_LIST_URI, where, whereArgs);
 
             // Refresh podcast list
             ContentValues values = new ContentValues();
@@ -325,7 +327,6 @@ public class MainActivity extends Activity {
         @Override
         protected void onPostExecute(Void aVoid) {
             new RestoreFeedList().execute();
-            Log.e("==>", "Feed salvo");
         }
     }
 
@@ -357,7 +358,6 @@ public class MainActivity extends Activity {
             }
             setLayout(list);
             cursor.close();
-            Log.e("==>", "Feed restaurado");
         }
     }
 
