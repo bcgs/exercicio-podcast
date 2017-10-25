@@ -51,7 +51,7 @@ import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 public class MainActivity extends Activity {
 
     private final String RSS_FEED = "http://leopoldomt.com/if710/fronteirasdaciencia.xml";
-    private final String URI_FILE = "listofuris.pc";
+    private final String URI_FILE = "uris.pc";
     private String lastBuildDate;
 
     private PodcastProvider provider;
@@ -70,6 +70,9 @@ public class MainActivity extends Activity {
         // Para evitar null pointer exception
         // e garantir que o DB foi instanciado.
         provider.onCreate();
+
+        uris = new ArrayList<>();
+        readUriFile();
 
         items = findViewById(R.id.items);
 
@@ -152,6 +155,7 @@ public class MainActivity extends Activity {
     private boolean hasInternetConnection() {
         ConnectivityManager connectivityManager =
                 (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
+        assert connectivityManager != null;
         NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
     }
@@ -178,13 +182,15 @@ public class MainActivity extends Activity {
                 XmlFeedAdapter adapter = (XmlFeedAdapter) parent.getAdapter();
                 ItemFeed item = adapter.getItem(position);
 
-                Intent episodeDetail = new Intent(getApplicationContext(), EpisodeDetailActivity.class);
-                episodeDetail.putExtra("item_title", item.getTitle());
-                episodeDetail.putExtra("item_description", item.getDescription());
-                episodeDetail.putExtra("item_pubdate", item.getPubDate());
-                episodeDetail.putExtra("item_link", item.getLink());
-                episodeDetail.putExtra("item_dlink", item.getDownloadLink());
-                startActivity(episodeDetail);
+                if (item != null) {
+                    Intent episodeDetail = new Intent(getApplicationContext(), EpisodeDetailActivity.class);
+                    episodeDetail.putExtra("item_title", item.getTitle());
+                    episodeDetail.putExtra("item_description", item.getDescription());
+                    episodeDetail.putExtra("item_pubdate", item.getPubDate());
+                    episodeDetail.putExtra("item_link", item.getLink());
+                    episodeDetail.putExtra("item_dlink", item.getDownloadLink());
+                    startActivity(episodeDetail);
+                }
             }
         });
     }
@@ -192,7 +198,7 @@ public class MainActivity extends Activity {
     //TODO Opcional - pesquise outros meios de obter arquivos da internet
     private String getRssFeed(String feed) throws IOException {
         InputStream in = null;
-        String rssFeed = "";
+        String rssFeed;
         try {
             URL url = new URL(feed);
             HttpURLConnection conn = (HttpURLConnection) url.openConnection();
@@ -216,24 +222,26 @@ public class MainActivity extends Activity {
         @Override
         public void onReceive(Context context, Intent intent) {
             // Atualizar no bd o URI do arquivo baixado
-            Uri fileuri = (Uri) intent.getExtras().get("uri");
             String dlink = intent.getStringExtra("downloadlink");
-            new UpdateUriTask().execute(dlink, fileuri.toString());
+            Uri fileuri = (Uri) intent.getExtras().get("uri");
+            if(fileuri != null)
+                new UpdateUriTask().execute(dlink, fileuri.toString());
 
             try {
                 saveUriFile(dlink);
-            } catch(FileNotFoundException ie) {}
+            } catch(FileNotFoundException e) {
+                e.printStackTrace();
+            }
 
             // Atualizar estado do botao download
             int position = intent.getExtras().getInt("position");
             adapter.setButtonToListen(position);
-            print("Download finalizado!");
+            Toast.makeText(getApplicationContext(),
+                    "Download finalizado!",
+                    Toast.LENGTH_SHORT
+            ).show();
         }
     };
-
-    private void print(String msg) {
-        Toast.makeText(this, msg, Toast.LENGTH_SHORT).show();
-    }
 
     private void saveUriFile(String input) throws FileNotFoundException {
         FileOutputStream fos = openFileOutput(URI_FILE, MODE_APPEND);
@@ -242,18 +250,20 @@ public class MainActivity extends Activity {
         pw.close();
     }
 
-    private List<String> readUriFile() throws IOException {
-        List<String> uris = new ArrayList<>();
-        FileInputStream fis = openFileInput(URI_FILE);
-        BufferedReader br = new BufferedReader(new InputStreamReader(fis));
-        for (String row; (row = br.readLine()) != null; ) {
-            uris.add(row);
+    private void readUriFile() {
+        uris.clear();
+        try {
+            FileInputStream fis = openFileInput(URI_FILE);
+            BufferedReader br = new BufferedReader(new InputStreamReader(fis));
+            for (String row; (row = br.readLine()) != null; ) {
+                uris.add(row);
+            }
+            br.close();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (NullPointerException e) {
+            uris = null;
         }
-        br.close();
-        if (uris.size() != 0)
-            return uris;
-        else
-            return null;
     }
 
     private class DownloadXmlTask extends AsyncTask<String, Void, List<ItemFeed>> {
@@ -263,9 +273,7 @@ public class MainActivity extends Activity {
             try {
                 itemList = XmlFeedParser.parse(getRssFeed(params[0]));
                 lastBuildDate = XmlFeedParser.lastBuildDate;
-            } catch (IOException e) {
-                e.printStackTrace();
-            } catch (XmlPullParserException e) {
+            } catch (IOException | XmlPullParserException e) {
                 e.printStackTrace();
             }
             return itemList;
@@ -278,9 +286,7 @@ public class MainActivity extends Activity {
                     // Avoid multithreading concurrency
                     // Wait the thread to finish
                     new SaveFeedList().execute(feed).get();
-                } catch (InterruptedException e) {
-                    e.printStackTrace();
-                } catch (ExecutionException e) {
+                } catch (InterruptedException | ExecutionException e) {
                     e.printStackTrace();
                 }
                 feedSaved = true;
@@ -289,12 +295,9 @@ public class MainActivity extends Activity {
     }
 
     private class SaveFeedList extends AsyncTask<List<ItemFeed>, Void, Void> {
+        @SafeVarargs
         @Override
-        protected Void doInBackground(List<ItemFeed>... items) {
-            try {
-                uris = readUriFile();
-            } catch (IOException ie) { ie.printStackTrace(); }
-
+        protected final Void doInBackground(List<ItemFeed>... items) {
             // Clear DB except downloaded files.
             String where = PodcastProviderContract.EPISODE_URI + " LIKE ?";
             String[] whereArgs = { "" };
