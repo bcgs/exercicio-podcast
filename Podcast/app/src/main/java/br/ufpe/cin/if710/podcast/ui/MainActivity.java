@@ -14,6 +14,7 @@ import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
 import android.support.v4.content.LocalBroadcastManager;
+import android.util.Log;
 import android.view.Menu;
 import android.view.MenuItem;
 import android.view.View;
@@ -50,19 +51,20 @@ import br.ufpe.cin.if710.podcast.service.RssPlayerService;
 import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 
 public class MainActivity extends Activity {
-
     private final String RSS_FEED = "http://leopoldomt.com/if710/fronteirasdaciencia.xml";
     private final String URI_FILE = "uris.pc";
 
-    private String lVersion = "lastVersion";
+    private SharedPreferences.Editor prefsEditor;
+    private String lBuildDateKey = "lBuildDate";
     private String lastBuildDate;
+    private String updateKey = "update";
+    private boolean updated;
 
     private PodcastProvider provider;
     private XmlFeedAdapter adapter;
     private List<String> uris;
 
     private ListView items;
-    private boolean feedSaved;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -70,8 +72,9 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         SharedPreferences prefs = getPreferences(MODE_PRIVATE);
-        SharedPreferences.Editor prefsEditor = prefs.edit();
-        lastBuildDate = prefs.getString(lVersion, "");
+        prefsEditor = prefs.edit();
+        lastBuildDate = prefs.getString(lBuildDateKey, "");
+        updated = prefs.getBoolean(updateKey, false);
 
         provider = new PodcastProvider();
         // Avoid null pointer exception
@@ -83,9 +86,14 @@ public class MainActivity extends Activity {
 
         items = findViewById(R.id.items);
 
-        if (hasInternetConnection())
+        if (hasInternetConnection()) {
             new DownloadXmlTask().execute(RSS_FEED);
-        else
+            Toast.makeText(
+                    this,
+                    "Checking update...",
+                    Toast.LENGTH_LONG
+            ).show();
+        } else
             new RestoreFeedList().execute();
     }
 
@@ -279,7 +287,9 @@ public class MainActivity extends Activity {
             List<ItemFeed> itemList = new ArrayList<>();
             try {
                 itemList = XmlFeedParser.parse(getRssFeed(params[0]));
-                lastBuildDate = XmlFeedParser.lastBuildDate;
+                if (!lastBuildDate.equals(XmlFeedParser.lastBuildDate)) {
+                    updated = false;
+                }
             } catch (IOException | XmlPullParserException e) {
                 e.printStackTrace();
             }
@@ -288,7 +298,8 @@ public class MainActivity extends Activity {
 
         @Override
         protected void onPostExecute(List<ItemFeed> feed) {
-            if (!feedSaved) {
+            if (!updated) {
+                Log.e("===>", "Saving...");
                 try {
                     // Avoid multithreading concurrency
                     // Wait the thread to finish
@@ -296,7 +307,10 @@ public class MainActivity extends Activity {
                 } catch (InterruptedException | ExecutionException e) {
                     e.printStackTrace();
                 }
-                feedSaved = true;
+            }
+            else {
+                new RestoreFeedList().execute();
+                Log.e("===>", "Already updated! Restoring...");
             }
         }
     }
@@ -336,7 +350,16 @@ public class MainActivity extends Activity {
 
         @Override
         protected void onPostExecute(Void aVoid) {
+            // Update SharedPreferences w/ lastBuildDate
+            updated = true;
+            prefsEditor.putBoolean(updateKey, true);
+            lastBuildDate = XmlFeedParser.lastBuildDate;
+            prefsEditor.putString(lBuildDateKey, lastBuildDate);
+            prefsEditor.apply();
+
             new RestoreFeedList().execute();
+            Log.e("Last build date", lastBuildDate);
+            Log.e("===>", "Restoring...");
         }
     }
 
