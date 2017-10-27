@@ -226,11 +226,7 @@ public class MainActivity extends Activity {
             if(fileuri != null)
                 new UpdateUriTask().execute(dlink, fileuri.toString());
 
-            try {
-                saveUriFile(dlink);
-            } catch(FileNotFoundException e) {
-                e.printStackTrace();
-            }
+            saveUriFile(dlink);
 
             // Update download button state
             int position = intent.getExtras().getInt("position");
@@ -242,11 +238,18 @@ public class MainActivity extends Activity {
         }
     };
 
-    private void saveUriFile(String input) throws FileNotFoundException {
-        FileOutputStream fos = openFileOutput(URI_FILE, MODE_APPEND);
-        PrintWriter pw = new PrintWriter(new BufferedWriter(new OutputStreamWriter(fos)));
-        pw.write(input + '\n');
-        pw.close();
+    private void saveUriFile(String input) {
+        FileOutputStream fos = null;
+        try {
+            fos = openFileOutput(URI_FILE, MODE_APPEND);
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+        if (fos != null) {
+            PrintWriter pw = new PrintWriter(new BufferedWriter(new OutputStreamWriter(fos)));
+            pw.write(input + '\n');
+            pw.close();
+        }
     }
 
     private void readUriFile() {
@@ -258,10 +261,8 @@ public class MainActivity extends Activity {
                 uris.add(row);
             }
             br.close();
-        } catch (IOException e) {
+        } catch (IOException | NullPointerException e) {
             e.printStackTrace();
-        } catch (NullPointerException e) {
-            uris = null;
         }
     }
 
