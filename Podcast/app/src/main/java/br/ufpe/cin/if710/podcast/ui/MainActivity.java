@@ -39,6 +39,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.StringTokenizer;
 import java.util.concurrent.ExecutionException;
 
 import br.ufpe.cin.if710.podcast.R;
@@ -54,11 +55,16 @@ public class MainActivity extends Activity {
     private final String RSS_FEED = "http://leopoldomt.com/if710/fronteirasdaciencia.xml";
     private final String URI_FILE = "uris.pc";
 
+    private SharedPreferences prefs;
     private SharedPreferences.Editor prefsEditor;
     private String lBuildDateKey = "lBuildDate";
     private String lastBuildDate;
     private String updateKey = "update";
     private boolean updated;
+    private String positionsKey = "positions";
+    private int[] positions;
+    private String sizeKey = "listSize";
+    private int listSize;
 
     private PodcastProvider provider;
     private XmlFeedAdapter adapter;
@@ -71,10 +77,12 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        SharedPreferences prefs = getPreferences(MODE_PRIVATE);
+        prefs = getPreferences(MODE_PRIVATE);
         prefsEditor = prefs.edit();
         lastBuildDate = prefs.getString(lBuildDateKey, "");
         updated = prefs.getBoolean(updateKey, false);
+        listSize = prefs.getInt(sizeKey, 0);
+        if (updated) positions = restorePositions();
 
         provider = new PodcastProvider();
         // Avoid null pointer exception
@@ -186,8 +194,10 @@ public class MainActivity extends Activity {
 
         // Change downloaded episodes button state
         if (uris != null)
-            for (int i = uris.size()-1; i >= 0; i--)
-                adapter.setButtonToListen(i);
+            for (int i = 0; i < positions.length; ++i)
+                if(positions[i] != 0)
+                    adapter.setButtonToListen(i);
+
 
         items.setTextFilterEnabled(true);
         items.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -207,6 +217,36 @@ public class MainActivity extends Activity {
                 }
             }
         });
+    }
+
+    /**
+     * Save position of a downloaded episode so that its
+     * state button will be saved after quit.
+     * @param pos Position of the downloaded episode.
+     */
+    private void savePosition(int pos) {
+        StringBuilder sBuilder = new StringBuilder();
+        positions[pos] = 1;
+        for (int i = 0; i < positions.length; ++i)
+            sBuilder.append(positions[i]).append(",");
+        prefsEditor.putString(positionsKey, sBuilder.toString());
+        prefsEditor.apply();
+    }
+
+    /**
+     * Restore button states of all the downloaded episodes.
+     * @return Array with positions.
+     */
+    private int[] restorePositions() {
+        if (listSize != 0) {
+            int[] pos = new int[listSize];
+            String positions = prefs.getString(positionsKey, "");
+            StringTokenizer st = new StringTokenizer(positions, ",");
+            for (int i = 0; i < pos.length; ++i)
+                pos[i] = Integer.parseInt(st.nextToken());
+            return pos;
+        }
+        return null;
     }
 
     //TODO Opcional - pesquise outros meios de obter arquivos da internet
@@ -245,6 +285,7 @@ public class MainActivity extends Activity {
 
             // Update download button state
             int position = intent.getExtras().getInt("position");
+            savePosition(position);
             adapter.setButtonToListen(position);
             Toast.makeText(getApplicationContext(),
                     "Download finalizado!",
@@ -299,6 +340,9 @@ public class MainActivity extends Activity {
         @Override
         protected void onPostExecute(List<ItemFeed> feed) {
             if (!updated) {
+                positions = new int[feed.size()];
+                prefsEditor.putInt(sizeKey, feed.size());
+                prefsEditor.apply();
                 Log.e("===>", "Saving...");
                 try {
                     // Avoid multithreading concurrency
@@ -319,6 +363,7 @@ public class MainActivity extends Activity {
         @SafeVarargs
         @Override
         protected final Void doInBackground(List<ItemFeed>... items) {
+            // todo: Reformular
             // Clear DB except downloaded files.
             String where = PodcastProviderContract.EPISODE_URI + " LIKE ?";
             String[] whereArgs = { "" };
