@@ -67,8 +67,8 @@ public class MainActivity extends Activity {
         setContentView(R.layout.activity_main);
 
         provider = new PodcastProvider();
-        // Para evitar null pointer exception
-        // e garantir que o DB foi instanciado.
+        // Avoid null pointer exception
+        // to make sure the DB was instantiated.
         provider.onCreate();
 
         uris = new ArrayList<>();
@@ -169,8 +169,7 @@ public class MainActivity extends Activity {
         adapter = new XmlFeedAdapter(getApplicationContext(), R.layout.itemlista, feed);
         items.setAdapter(adapter);
 
-        // Modificar estado dos botoes
-        // dos episodios ja baixados
+        // Change downloaded episodes button state
         if (uris != null)
             for (int i = uris.size()-1; i >= 0; i--)
                 adapter.setButtonToListen(i);
@@ -221,7 +220,7 @@ public class MainActivity extends Activity {
     private BroadcastReceiver onDownloadCompleteEvent = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-            // Atualizar no bd o URI do arquivo baixado
+            // Update downloaded file URI to DB
             String dlink = intent.getStringExtra("downloadlink");
             Uri fileuri = (Uri) intent.getExtras().get("uri");
             if(fileuri != null)
@@ -233,7 +232,7 @@ public class MainActivity extends Activity {
                 e.printStackTrace();
             }
 
-            // Atualizar estado do botao download
+            // Update download button state
             int position = intent.getExtras().getInt("position");
             adapter.setButtonToListen(position);
             Toast.makeText(getApplicationContext(),
@@ -303,7 +302,7 @@ public class MainActivity extends Activity {
             String[] whereArgs = { "" };
             provider.delete(PodcastProviderContract.EPISODE_LIST_URI, where, whereArgs);
 
-            // Refresh podcast list
+            // Refresh DB list
             ContentValues values = new ContentValues();
             values.put(PodcastProviderContract.EPISODE_URI, "");
             for (ItemFeed item : items[0]) {
