@@ -402,6 +402,13 @@ public class MainActivity extends Activity {
             prefsEditor.putString(lBuildDateKey, lastBuildDate);
             prefsEditor.apply();
 
+            // Rearrange position of episodes already downloaded
+            for (int i = 0; i < uris.size(); i++)
+                positions[i] = 1;
+            for (int j = uris.size(); j < (positions.length - uris.size()); j++)
+                if (positions[j] != 0)
+                    positions[j] = 0;
+
             new RestoreFeedList().execute();
             Log.e("Last build date", lastBuildDate);
             Log.e("===>", "Restoring...");
