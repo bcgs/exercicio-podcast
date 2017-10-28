@@ -363,7 +363,6 @@ public class MainActivity extends Activity {
         @SafeVarargs
         @Override
         protected final Void doInBackground(List<ItemFeed>... items) {
-            // todo: Reformular
             // Clear DB except downloaded files.
             String where = PodcastProviderContract.EPISODE_URI + " LIKE ?";
             String[] whereArgs = { "" };
