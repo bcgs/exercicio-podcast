@@ -55,14 +55,14 @@ public class MainActivity extends Activity {
     private final String RSS_FEED = "http://leopoldomt.com/if710/fronteirasdaciencia.xml";
     private final String URI_FILE = "uris.pc";
 
-    private SharedPreferences prefs;
-    private SharedPreferences.Editor prefsEditor;
+    public static SharedPreferences prefs;
+    public static SharedPreferences.Editor prefsEditor;
     private String lBuildDateKey = "lBuildDate";
     private String lastBuildDate;
     private String updateKey = "update";
     private boolean updated;
     private String positionsKey = "positions";
-    private int[] positions;
+    public static int[][] positions;
     private String sizeKey = "listSize";
     private int listSize;
 
@@ -76,13 +76,14 @@ public class MainActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        items = findViewById(R.id.items);
 
         prefs = getPreferences(MODE_PRIVATE);
         prefsEditor = prefs.edit();
         lastBuildDate = prefs.getString(lBuildDateKey, "");
         updated = prefs.getBoolean(updateKey, false);
         listSize = prefs.getInt(sizeKey, 0);
-        if (updated) positions = restorePositions();
+        restorePositions();
 
         provider = new PodcastProvider();
         // Avoid null pointer exception
@@ -91,8 +92,6 @@ public class MainActivity extends Activity {
 
         uris = new ArrayList<>();
         readUriFile();
-
-        items = findViewById(R.id.items);
 
         if (hasInternetConnection()) {
             new DownloadXmlTask().execute(RSS_FEED);
@@ -164,11 +163,11 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        super.onDestroy();
         if (isFinishing()) {
             Intent playerIntent = new Intent(this, RssPlayerService.class);
             stopService(playerIntent);
         }
+        super.onDestroy();
     }
 
     /**
@@ -192,12 +191,16 @@ public class MainActivity extends Activity {
         adapter = new XmlFeedAdapter(getApplicationContext(), R.layout.itemlista, feed);
         items.setAdapter(adapter);
 
-        // Change downloaded episodes button state
-        if (uris != null)
-            for (int i = 0; i < positions.length; ++i)
-                if(positions[i] != 0)
-                    adapter.setButtonToListen(i);
-
+        if (uris != null) {
+            int i = 0;
+            for (int j = 0; j < positions.length; j++) {
+                if (i >= uris.size()) break;
+                if (positions[j][0] != 0) {
+                    adapter.setButtonToListen(j);
+                    i++;
+                }
+            }
+        }
 
         items.setTextFilterEnabled(true);
         items.setOnItemClickListener(new AdapterView.OnItemClickListener() {
@@ -226,27 +229,23 @@ public class MainActivity extends Activity {
      */
     private void savePosition(int pos) {
         StringBuilder sBuilder = new StringBuilder();
-        positions[pos] = 1;
-        for (int i = 0; i < positions.length; ++i)
-            sBuilder.append(positions[i]).append(",");
+        positions[pos][0] = 1;
+        for (int[] position : positions)
+            sBuilder.append(position[0]).append(",");
         prefsEditor.putString(positionsKey, sBuilder.toString());
         prefsEditor.apply();
     }
 
     /**
      * Restore button states of all the downloaded episodes.
-     * @return Array with positions.
      */
-    private int[] restorePositions() {
-        if (listSize != 0) {
-            int[] pos = new int[listSize];
-            String positions = prefs.getString(positionsKey, "");
-            StringTokenizer st = new StringTokenizer(positions, ",");
-            for (int i = 0; i < pos.length; ++i)
-                pos[i] = Integer.parseInt(st.nextToken());
-            return pos;
+    private void restorePositions() {
+        String pos = prefs.getString(positionsKey, "");
+        if (!pos.equals("")) {
+            StringTokenizer st = new StringTokenizer(pos, ",");
+            for (int i = 0; i < positions.length; i++)
+                positions[i][0] = Integer.parseInt(st.nextToken());
         }
-        return null;
     }
 
     //TODO Opcional - pesquise outros meios de obter arquivos da internet
@@ -340,8 +339,8 @@ public class MainActivity extends Activity {
         @Override
         protected void onPostExecute(List<ItemFeed> feed) {
             if (!updated) {
-                positions = new int[feed.size()];
-                prefsEditor.putInt(sizeKey, feed.size());
+                listSize = feed.size();
+                prefsEditor.putInt(sizeKey, listSize);
                 prefsEditor.apply();
                 Log.e("===>", "Saving...");
                 try {
@@ -402,11 +401,22 @@ public class MainActivity extends Activity {
             prefsEditor.apply();
 
             // Rearrange position of episodes already downloaded
-            for (int i = 0; i < uris.size(); i++)
-                positions[i] = 1;
-            for (int j = uris.size(); j < (positions.length - uris.size()); j++)
-                if (positions[j] != 0)
-                    positions[j] = 0;
+            if (positions == null)
+                positions = new int[listSize][2];
+            else {
+                int[][] aux = new int[listSize][2];
+                int i = 0;
+                for (int j = 0; j < positions.length; j++) {
+                    if (i >= uris.size()) break;
+                    if (positions[j][0] != 0) {
+                        aux[i] = positions[j];
+                        i++;
+                    }
+                }
+                positions = aux;
+            }
+            for (int k = 0; k < uris.size(); k++)
+                savePosition(k);
 
             new RestoreFeedList().execute();
             Log.e("Last build date", lastBuildDate);
