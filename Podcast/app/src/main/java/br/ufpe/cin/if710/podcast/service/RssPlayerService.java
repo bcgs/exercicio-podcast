@@ -8,19 +8,25 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.IBinder;
+import android.util.Log;
 
 import br.ufpe.cin.if710.podcast.ui.MainActivity;
+import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 
 public class RssPlayerService extends Service {
     private static final int NOTIFICATION_ID = 1;
-    private MediaPlayer player;
-    private int id;
+    public static String PAUSE_KEY = "pause";
+
     private final IBinder binder = new RssBinder();
+
+    private MediaPlayer player;
+
+    private int id;
+    private int cEpisode;
 
     @Override
     public void onCreate() {
         super.onCreate();
-
         Intent musicActivityIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, musicActivityIntent, 0);
         Notification notification = new Notification.Builder(getApplicationContext())
@@ -37,6 +43,8 @@ public class RssPlayerService extends Service {
 
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
+        cEpisode = XmlFeedAdapter.currentEpisode;
+
         Uri fileuri = Uri.parse(intent.getStringExtra("fileuri"));
         player = MediaPlayer.create(this, fileuri);
         if (player != null) {
@@ -55,8 +63,8 @@ public class RssPlayerService extends Service {
 
     @Override
     public void onDestroy() {
-        super.onDestroy();
         if (player != null) player.release();
+        super.onDestroy();
     }
 
     @Override
@@ -65,11 +73,19 @@ public class RssPlayerService extends Service {
     }
 
     public void play() {
-        if (player != null) player.start();
+        if (player != null) {
+            int cPos = MainActivity.status[cEpisode][1];
+            if (cPos != 0)
+                player.seekTo(cPos);
+            player.start();
+        }
     }
 
     public void pause() {
-        if (player != null) player.pause();
+        if (player != null) {
+            player.pause();
+            saveCurrentPosition();
+        }
     }
 
     public void stop() {
@@ -80,5 +96,15 @@ public class RssPlayerService extends Service {
         public RssPlayerService getService() {
             return RssPlayerService.this;
         }
+    }
+
+    private void saveCurrentPosition() {
+        StringBuilder sBuilder = new StringBuilder();
+        MainActivity.status[cEpisode][1] = player.getCurrentPosition();
+        for (int[] position : MainActivity.status)
+            sBuilder.append(position[1]).append(",");
+        Log.e("Log pause", sBuilder.toString());
+        MainActivity.prefsEditor.putString(PAUSE_KEY, sBuilder.toString());
+        MainActivity.prefsEditor.apply();
     }
 }

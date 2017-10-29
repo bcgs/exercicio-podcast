@@ -21,14 +21,10 @@ import br.ufpe.cin.if710.podcast.service.DownloadService;
 import br.ufpe.cin.if710.podcast.service.RssPlayerService;
 
 public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
-
-    private int linkResource;
-    private Intent playService;
+    public static int currentEpisode = -1;
     public RssPlayerService rssPlayer;
+    private int linkResource;
     public boolean isBound;
-    public int currentEpisode = -1;
-
-    File path = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
 
     // btn_state[state]
     // state 0: Baixar | state 1: Baixando | state 2: Ouvir | state 3: Pausar
@@ -127,6 +123,9 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
                         holder.item_action.setEnabled(true);
                         btn_state[position] = 3;
 
+                        File path = Environment.
+                                getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+
                         // If there is not bound connection...
                         if (!isBound) {
                             Intent playerIntent = new Intent(getContext(), RssPlayerService.class);
@@ -194,7 +193,7 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
      * @param file File location in order to get its uri.
      */
     private void playEpisode(File file) {
-        playService = new Intent(getContext(), RssPlayerService.class);
+        Intent playService = new Intent(getContext(), RssPlayerService.class);
         playService.putExtra("fileuri", Uri.fromFile(file).toString());
         getContext().startService(playService);
     }
