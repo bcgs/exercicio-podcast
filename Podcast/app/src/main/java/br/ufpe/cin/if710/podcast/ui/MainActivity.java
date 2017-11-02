@@ -1,6 +1,8 @@
 package br.ufpe.cin.if710.podcast.ui;
 
 import android.app.Activity;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.BroadcastReceiver;
 import android.content.ContentValues;
 import android.content.Context;
@@ -13,6 +15,7 @@ import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.AsyncTask;
 import android.os.Bundle;
+import android.support.v4.app.NotificationCompat;
 import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 import android.view.Menu;
@@ -40,6 +43,8 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ExecutionException;
 
 import br.ufpe.cin.if710.podcast.R;
@@ -63,47 +68,54 @@ public class MainActivity extends Activity {
     public static SharedPreferences.Editor prefsEditor;
     public static int[][] status;
 
-    private String lastBuildDate;
-    private boolean updated;
-    private int listSize;
-
     private PodcastProvider provider;
     private XmlFeedAdapter adapter;
     private List<String> uris;
     private ListView items;
+    private Timer timer;
+
+    private int listSize;
+    private String lastBuildDate;
+    private boolean updated;
+    private boolean upCheckerOn;
+    private boolean onForeground;
+
+    private NotificationManager nManager;
+    private ConnectivityManager connectivityManager;
+    private NotificationCompat.Builder nBuilder;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+
         items = findViewById(R.id.items);
+
+        connectivityManager = (ConnectivityManager)
+                getSystemService(CONNECTIVITY_SERVICE);
 
         prefs = getPreferences(MODE_PRIVATE);
         prefsEditor = prefs.edit();
-
         lastBuildDate = prefs.getString(LBDATE_KEY, "");
         updated = prefs.getBoolean(UPDATE_KEY, false);
         listSize = prefs.getInt(SIZE_KEY, 0);
 
         restoreStatus();
-        provider = new PodcastProvider();
 
+        provider = new PodcastProvider();
         // Avoid null pointer exception
         // to make sure the DB was instantiated.
         provider.onCreate();
 
-        uris = new ArrayList<>();
-        readUriFile();
-
         if (hasInternetConnection()) {
             new DownloadXmlTask().execute(RSS_FEED);
-            Toast.makeText(
-                    this,
-                    "Checking update...",
-                    Toast.LENGTH_LONG
-            ).show();
-        } else
-            new RestoreFeedList().execute();
+            print("Checking update...", Toast.LENGTH_LONG);
+        } else new RestoreFeedList().execute();
+
+        nBuilder = buildNotification();
+
+        setUpdateChecker();
+        upCheckerOn = true;
     }
 
     @Override
@@ -136,11 +148,20 @@ public class MainActivity extends Activity {
                     adapter.sConn, BIND_AUTO_CREATE);
             adapter.isBound = true;
         }
+
+        if (!upCheckerOn && hasInternetConnection()) {
+            print("Updating...", Toast.LENGTH_SHORT);
+            new DownloadXmlTask().execute(RSS_FEED);
+            setUpdateChecker();
+            upCheckerOn = true;
+        }
     }
 
     @Override
     protected void onResume() {
         super.onResume();
+        onForeground = true;
+
         IntentFilter intentFilter = new IntentFilter(DownloadService.DOWNLOAD_COMPLETE);
         LocalBroadcastManager.getInstance(this)
                 .registerReceiver(onDownloadCompleteEvent, intentFilter);
@@ -148,6 +169,8 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
+        onForeground = false;
+
         super.onPause();
         LocalBroadcastManager.getInstance(this)
                 .unregisterReceiver(onDownloadCompleteEvent);
@@ -169,7 +192,57 @@ public class MainActivity extends Activity {
             Intent playerIntent = new Intent(this, RssPlayerService.class);
             stopService(playerIntent);
         }
+        timer.cancel();
         super.onDestroy();
+    }
+
+    /**
+     * Notification to be sent when the app is on
+     * background and a new feed update is available.
+     * @return Notification ready to be send.
+     */
+    private NotificationCompat.Builder buildNotification() {
+        nManager = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+        Intent nIntent = new Intent(this, MainActivity.class);
+        nIntent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        nIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        PendingIntent contentIntent = PendingIntent.getActivity(
+                this, 0, nIntent, 0
+        );
+
+        String ticker = "Update available";
+        String title = "Podcast";
+        String text = "New feed update available";
+
+        return nBuilder = new NotificationCompat.Builder(this)
+                .setSmallIcon(android.R.drawable.stat_sys_download_done)
+                .setAutoCancel(true)
+                .setTicker(ticker)
+                .setContentTitle(title)
+                .setContentText(text)
+                .setContentIntent(contentIntent);
+    }
+
+    /**
+     * Set an update checker.
+     */
+    private void setUpdateChecker() {
+        timer = new Timer();
+        TimerTask caller = new TimerTask() {
+            @Override
+            public void run() {
+                if (hasInternetConnection()) {
+                    new DownloadXmlTask().execute(RSS_FEED);
+                }
+            }
+        };
+        // 1800000 = 30 minutes
+        timer.schedule(caller, 1800000, 1800000);
+    }
+
+    private void initializeUriList() {
+        uris = new ArrayList<>();
+        readUriFile();
     }
 
     /**
@@ -177,8 +250,6 @@ public class MainActivity extends Activity {
      * @return Connected or disconnected.
      */
     private boolean hasInternetConnection() {
-        ConnectivityManager connectivityManager =
-                (ConnectivityManager) getSystemService(Context.CONNECTIVITY_SERVICE);
         assert connectivityManager != null;
         NetworkInfo activeNetworkInfo = connectivityManager.getActiveNetworkInfo();
         return activeNetworkInfo != null && activeNetworkInfo.isConnected();
@@ -192,6 +263,9 @@ public class MainActivity extends Activity {
     private void setLayout(List<ItemFeed> feed) {
         adapter = new XmlFeedAdapter(getApplicationContext(), R.layout.itemlista, feed);
         items.setAdapter(adapter);
+
+        if (uris == null)
+            initializeUriList();
 
         if (uris.size() != 0) {
             int i = 0;
@@ -273,8 +347,8 @@ public class MainActivity extends Activity {
             sBuilder1.append(position[0]).append(",");
             sBuilder2.append(position[1]).append(",");
         }
-        Log.e("sBuilder1", sBuilder1.toString());
-        Log.e("sBuilder2", sBuilder2.toString());
+        //Log.e("sBuilder1", sBuilder1.toString());
+        //Log.e("sBuilder2", sBuilder2.toString());
         prefsEditor.putString(STATUS_KEY, sBuilder1.toString());
         prefsEditor.putString(RssPlayerService.PAUSE_KEY, sBuilder2.toString());
         prefsEditor.apply();
@@ -318,13 +392,11 @@ public class MainActivity extends Activity {
             int position = intent.getExtras().getInt("position");
             savePosition(position);
             adapter.setButtonToListen(position);
-            Toast.makeText(getApplicationContext(),
-                    "Download finalizado!",
-                    Toast.LENGTH_SHORT
-            ).show();
+            print("Download finalizado!", Toast.LENGTH_SHORT);
         }
     };
 
+    // todo: replace with SharedPreferences
     private void saveUriFile(String input) {
         FileOutputStream fos = null;
         try {
@@ -339,6 +411,7 @@ public class MainActivity extends Activity {
         }
     }
 
+    // todo: replace with SharedPreferences
     private void readUriFile() {
         uris.clear();
         try {
@@ -371,19 +444,26 @@ public class MainActivity extends Activity {
         @Override
         protected void onPostExecute(List<ItemFeed> feed) {
             if (!updated) {
-                listSize = feed.size();
-                prefsEditor.putInt(SIZE_KEY, listSize);
-                prefsEditor.apply();
-                Log.e("===>", "Saving...");
-                try {
-                    // Avoid multithreading concurrency
-                    // Wait the thread to finish
-                    new SaveFeedList().execute(feed).get();
-                } catch (InterruptedException | ExecutionException e) {
-                    e.printStackTrace();
+                if (onForeground) {
+                    listSize = feed.size();
+                    prefsEditor.putInt(SIZE_KEY, listSize);
+                    prefsEditor.apply();
+                    initializeUriList();
+                    Log.e("===>", "Saving...");
+                    try {
+                        // Avoid multithreading concurrency
+                        // Wait the thread to finish
+                        new SaveFeedList().execute(feed).get();
+                    } catch (InterruptedException | ExecutionException e) {
+                        e.printStackTrace();
+                    }
+                } else {
+                    // Send notification
+                    nManager.notify(1, nBuilder.build());
+                    timer.cancel();
+                    upCheckerOn = false;
                 }
-            }
-            else {
+            } else {
                 new RestoreFeedList().execute();
                 Log.e("===>", "Already updated! Restoring...");
             }
@@ -503,5 +583,9 @@ public class MainActivity extends Activity {
             );
             return null;
         }
+    }
+
+    private void print(String message, int duration) {
+        Toast.makeText(this, message, duration).show();
     }
 }
