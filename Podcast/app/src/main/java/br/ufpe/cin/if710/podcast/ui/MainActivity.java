@@ -27,17 +27,9 @@ import android.widget.Toast;
 
 import org.xmlpull.v1.XmlPullParserException;
 
-import java.io.BufferedReader;
-import java.io.BufferedWriter;
 import java.io.ByteArrayOutputStream;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.OutputStreamWriter;
-import java.io.PrintWriter;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
@@ -58,7 +50,7 @@ import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 
 public class MainActivity extends Activity {
     private final String RSS_FEED = "http://leopoldomt.com/if710/fronteirasdaciencia.xml";
-    private final String URI_FILE = "uris.pc";
+    private final String DLINKS_KEY = "dlinks";
     private final String LBDATE_KEY = "lBuildDate";
     private final String UPDATE_KEY = "update";
     private final String STATUS_KEY = "status";
@@ -70,7 +62,7 @@ public class MainActivity extends Activity {
 
     private PodcastProvider provider;
     private XmlFeedAdapter adapter;
-    private List<String> uris;
+    private List<String> dlinks;
     private ListView items;
     private Timer timer;
 
@@ -240,9 +232,9 @@ public class MainActivity extends Activity {
         timer.schedule(caller, 1800000, 1800000);
     }
 
-    private void initializeUriList() {
-        uris = new ArrayList<>();
-        readUriFile();
+    private void initializeDlinkList() {
+        dlinks = new ArrayList<>();
+        readDlinks();
     }
 
     /**
@@ -264,13 +256,13 @@ public class MainActivity extends Activity {
         adapter = new XmlFeedAdapter(getApplicationContext(), R.layout.itemlista, feed);
         items.setAdapter(adapter);
 
-        if (uris == null)
-            initializeUriList();
+        if (dlinks == null)
+            initializeDlinkList();
 
-        if (uris.size() != 0) {
+        if (dlinks.size() != 0) {
             int i = 0;
             for (int j = 0; j < status.length; j++) {
-                if (i >= uris.size()) break;
+                if (i >= dlinks.size()) break;
                 if (status[j][0] != 0) {
                     adapter.setButtonToListen(j);
                     i++;
@@ -354,6 +346,24 @@ public class MainActivity extends Activity {
         prefsEditor.apply();
     }
 
+    private void readDlinks() {
+        String dlinks = prefs.getString(DLINKS_KEY, "");
+        if (!dlinks.equals("")) {
+            StringTokenizer sT = new StringTokenizer(dlinks, ",");
+            while (sT.hasMoreTokens())
+                this.dlinks.add(sT.nextToken());
+        }
+    }
+
+    private void saveDlinks(String dlink) {
+        StringBuilder sBuilder = new StringBuilder();
+        dlinks.add(dlink);
+        for (String elem : dlinks)
+            sBuilder.append(elem).append(",");
+        prefsEditor.putString(DLINKS_KEY, sBuilder.toString());
+        prefsEditor.apply();
+    }
+
     //TODO Opcional - pesquise outros meios de obter arquivos da internet
     private String getRssFeed(String feed) throws IOException {
         InputStream in = null;
@@ -386,7 +396,7 @@ public class MainActivity extends Activity {
             if(fileuri != null)
                 new UpdateUriTask().execute(dlink, fileuri.toString());
 
-            saveUriFile(dlink);
+            saveDlinks(dlink);
 
             // Update download button state
             int position = intent.getExtras().getInt("position");
@@ -395,36 +405,6 @@ public class MainActivity extends Activity {
             print("Download finalizado!", Toast.LENGTH_SHORT);
         }
     };
-
-    // todo: replace with SharedPreferences
-    private void saveUriFile(String input) {
-        FileOutputStream fos = null;
-        try {
-            fos = openFileOutput(URI_FILE, MODE_APPEND);
-        } catch (FileNotFoundException e) {
-            e.printStackTrace();
-        }
-        if (fos != null) {
-            PrintWriter pw = new PrintWriter(new BufferedWriter(new OutputStreamWriter(fos)));
-            pw.write(input + '\n');
-            pw.close();
-        }
-    }
-
-    // todo: replace with SharedPreferences
-    private void readUriFile() {
-        uris.clear();
-        try {
-            FileInputStream fis = openFileInput(URI_FILE);
-            BufferedReader br = new BufferedReader(new InputStreamReader(fis));
-            for (String row; (row = br.readLine()) != null; ) {
-                uris.add(row);
-            }
-            br.close();
-        } catch (IOException | NullPointerException e) {
-            e.printStackTrace();
-        }
-    }
 
     private class DownloadXmlTask extends AsyncTask<String, Void, List<ItemFeed>> {
         @Override
@@ -448,7 +428,7 @@ public class MainActivity extends Activity {
                     listSize = feed.size();
                     prefsEditor.putInt(SIZE_KEY, listSize);
                     prefsEditor.apply();
-                    initializeUriList();
+                    initializeDlinkList();
                     Log.e("===>", "Saving...");
                     try {
                         // Avoid multithreading concurrency
@@ -496,9 +476,9 @@ public class MainActivity extends Activity {
         }
 
         private boolean hasDuplicate(String dlink) {
-            if(uris != null)
-                for (int i = 0; i < uris.size(); ++i)
-                    if (dlink.equals(uris.get(i)))
+            if(dlinks != null)
+                for (int i = 0; i < dlinks.size(); ++i)
+                    if (dlink.equals(dlinks.get(i)))
                         return true;
             return false;
         }
@@ -517,11 +497,11 @@ public class MainActivity extends Activity {
                 status = new int[listSize][2];
                 saveStatus();
             } else {
-                if (uris.size() != 0) {
+                if (dlinks.size() != 0) {
                     int[][] aux = new int[listSize][2];
                     int i = 0;
                     for (int j = 0; j < status.length; j++) {
-                        if (i >= uris.size()) break;
+                        if (i >= dlinks.size()) break;
                         if (status[j][0] != 0) {
                             aux[i] = status[j];
                             i++;
