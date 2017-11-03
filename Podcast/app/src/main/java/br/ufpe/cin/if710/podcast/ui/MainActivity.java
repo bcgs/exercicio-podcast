@@ -33,6 +33,8 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.StringTokenizer;
 import java.util.Timer;
@@ -62,7 +64,7 @@ public class MainActivity extends Activity {
 
     private PodcastProvider provider;
     private XmlFeedAdapter adapter;
-    private List<String> dlinks;
+    private HashSet<String> dlinks;
     private ListView items;
     private Timer timer;
 
@@ -233,7 +235,7 @@ public class MainActivity extends Activity {
     }
 
     private void initializeDlinkList() {
-        dlinks = new ArrayList<>();
+        dlinks = new HashSet<>();
         readDlinks();
     }
 
@@ -358,8 +360,9 @@ public class MainActivity extends Activity {
     private void saveDlinks(String dlink) {
         StringBuilder sBuilder = new StringBuilder();
         dlinks.add(dlink);
-        for (String elem : dlinks)
-            sBuilder.append(elem).append(",");
+        Iterator<String> it = dlinks.iterator();
+        while (it.hasNext())
+            sBuilder.append(it.next()).append(",");
         prefsEditor.putString(DLINKS_KEY, sBuilder.toString());
         prefsEditor.apply();
     }
@@ -463,7 +466,7 @@ public class MainActivity extends Activity {
             ContentValues values = new ContentValues();
             values.put(PodcastProviderContract.EPISODE_URI, "");
             for (ItemFeed item : items[0]) {
-                if (hasDuplicate(item.getDownloadLink()))
+                if (!dlinks.isEmpty() && dlinks.contains(item.getDownloadLink()))
                     continue;
                 values.put(PodcastProviderContract.TITLE, item.getTitle());
                 values.put(PodcastProviderContract.DESCRIPTION, item.getDescription());
@@ -473,14 +476,6 @@ public class MainActivity extends Activity {
                 provider.insert(PodcastProviderContract.EPISODE_LIST_URI, values);
             }
             return null;
-        }
-
-        private boolean hasDuplicate(String dlink) {
-            if(dlinks != null)
-                for (int i = 0; i < dlinks.size(); ++i)
-                    if (dlink.equals(dlinks.get(i)))
-                        return true;
-            return false;
         }
 
         @Override
@@ -497,10 +492,10 @@ public class MainActivity extends Activity {
                 status = new int[listSize][2];
                 saveStatus();
             } else {
-                if (dlinks.size() != 0) {
+                if (!dlinks.isEmpty()) {
                     int[][] aux = new int[listSize][2];
                     int i = 0;
-                    for (int j = 0; j < status.length; j++) {
+                    for (int j = 0; j < listSize; j++) {
                         if (i >= dlinks.size()) break;
                         if (status[j][0] != 0) {
                             aux[i] = status[j];
