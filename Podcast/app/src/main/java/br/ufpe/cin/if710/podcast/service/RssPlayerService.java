@@ -8,6 +8,7 @@ import android.media.MediaPlayer;
 import android.net.Uri;
 import android.os.Binder;
 import android.os.IBinder;
+import android.support.v4.content.LocalBroadcastManager;
 import android.util.Log;
 
 import br.ufpe.cin.if710.podcast.ui.MainActivity;
@@ -21,8 +22,7 @@ public class RssPlayerService extends Service {
     private MediaPlayer player;
     private Notification notification;
 
-    private int id;
-    private int cEpisode;
+    private int id, cEpisode;
     private boolean isForeground;
 
     @Override
@@ -47,7 +47,8 @@ public class RssPlayerService extends Service {
     public int onStartCommand(Intent intent, int flags, int startId) {
         cEpisode = XmlFeedAdapter.currentEpisode;
 
-        Uri fileuri = Uri.parse(intent.getStringExtra("fileuri"));
+        final String fileUri = intent.getStringExtra("fileuri");
+        Uri fileuri = Uri.parse(fileUri);
         player = MediaPlayer.create(this, fileuri);
         if (player != null) {
             id = startId;
@@ -57,11 +58,14 @@ public class RssPlayerService extends Service {
                 public void onCompletion(MediaPlayer mp) {
                     stopForeground(true);
                     isForeground = false;
+
                     MainActivity.adapter.setButtonToState(
                             XmlFeedAdapter.DOWNLOAD, XmlFeedAdapter.currentEpisode
                     );
-                    // Flag the current episode is gone.
+
                     XmlFeedAdapter.currentEpisode = -1;
+
+                    removeEpisode(fileUri);
                 }
             });
             play();
@@ -122,5 +126,16 @@ public class RssPlayerService extends Service {
         //Log.e("Log pause", sBuilder.toString());
         MainActivity.prefsEditor.putString(MainActivity.PAUSE_KEY, sBuilder.toString());
         MainActivity.prefsEditor.apply();
+    }
+
+    /**
+     * Send a broadcast with fileUri so that the
+     * corresponding file will be deleted from memory.
+     * @param fileUri File's uri.
+     */
+    private void removeEpisode(String fileUri) {
+        Intent bIntent = new Intent(MainActivity.EPISODE_COMPLETE);
+        bIntent.putExtra("fileUri", fileUri);
+        LocalBroadcastManager.getInstance(this).sendBroadcast(bIntent);
     }
 }

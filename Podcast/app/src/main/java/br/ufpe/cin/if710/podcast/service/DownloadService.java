@@ -15,9 +15,9 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 
-public class DownloadService extends IntentService {
-    public static final String DOWNLOAD_COMPLETE = "br.ufpe.cin.if710.podcast.service.action.DOWNLOAD_COMPLETE";
+import br.ufpe.cin.if710.podcast.ui.MainActivity;
 
+public class DownloadService extends IntentService {
     public DownloadService() {
         super("DownloadService");
     }
@@ -55,7 +55,7 @@ public class DownloadService extends IntentService {
 
             // Send broadcast
             int position = intent.getExtras().getInt("position");
-            Intent broadcastIntent = new Intent(DOWNLOAD_COMPLETE);
+            Intent broadcastIntent = new Intent(MainActivity.DOWNLOAD_COMPLETE);
             broadcastIntent.putExtra("position", position);
             broadcastIntent.putExtra("downloadlink", intent.getData().toString());
             broadcastIntent.putExtra("uri", Uri.fromFile(file));

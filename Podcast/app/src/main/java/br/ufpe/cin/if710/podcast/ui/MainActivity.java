@@ -51,6 +51,10 @@ import br.ufpe.cin.if710.podcast.service.RssPlayerService;
 import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 
 public class MainActivity extends Activity {
+    public static final String DOWNLOAD_COMPLETE = "DOWNLOAD_COMPLETE";
+    public static final String EPISODE_COMPLETE = "EPISODE_COMPLETE";
+    public static final String PAUSE_KEY = "pause";
+
     private final String RSS_FEED = "http://leopoldomt.com/if710/fronteirasdaciencia.xml";
     private final String DLINKS_KEY = "dlinks";
     private final String LBDATE_KEY = "lBuildDate";
@@ -58,11 +62,10 @@ public class MainActivity extends Activity {
     private final String STATUS_KEY = "status";
     private final String SIZE_KEY = "listSize";
 
-    public static final String PAUSE_KEY = "pause";
-
     public static XmlFeedAdapter adapter;
     public static SharedPreferences prefs;
     public static SharedPreferences.Editor prefsEditor;
+
     public static int[][] status;
 
     private PodcastProvider provider;
@@ -72,9 +75,7 @@ public class MainActivity extends Activity {
 
     private int listSize;
     private String lastBuildDate;
-    private boolean updated;
-    private boolean upCheckerOn;
-    private boolean onForeground;
+    private boolean updated, upCheckerOn, onForeground;
 
     private NotificationManager nManager;
     private ConnectivityManager connectivityManager;
@@ -158,9 +159,13 @@ public class MainActivity extends Activity {
         super.onResume();
         onForeground = true;
 
-        IntentFilter intentFilter = new IntentFilter(DownloadService.DOWNLOAD_COMPLETE);
+        IntentFilter downloadFilter = new IntentFilter(DOWNLOAD_COMPLETE);
         LocalBroadcastManager.getInstance(this)
-                .registerReceiver(onDownloadCompleteEvent, intentFilter);
+                .registerReceiver(onDownloadCompleteEvent, downloadFilter);
+
+        IntentFilter episodeFilter = new IntentFilter(EPISODE_COMPLETE);
+        LocalBroadcastManager.getInstance(this)
+                .registerReceiver(onEpisodeCompleteEvent, episodeFilter);
     }
 
     @Override
@@ -185,13 +190,16 @@ public class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         if (isFinishing()) {
-            Intent playerIntent = new Intent(this, RssPlayerService.class);
-            stopService(playerIntent);
-        }
-        // Prevent memory leak
-        adapter = null;
+            stopService(new Intent(this, RssPlayerService.class));
 
-        timer.cancel();
+            LocalBroadcastManager.getInstance(this)
+                    .unregisterReceiver(onEpisodeCompleteEvent);
+
+            // Prevent memory leak
+            adapter = null;
+
+            timer.cancel();
+        }
         super.onDestroy();
     }
 
@@ -401,6 +409,7 @@ public class MainActivity extends Activity {
             // Update downloaded file URI to DB
             String dlink = intent.getStringExtra("downloadlink");
             Uri fileuri = (Uri) intent.getExtras().get("uri");
+            Log.e("onDownloadCompleteEvent", fileuri.toString());
             if(fileuri != null)
                 new UpdateUriTask().execute(dlink, fileuri.toString());
 
@@ -411,6 +420,13 @@ public class MainActivity extends Activity {
             savePosition(position);
             adapter.setButtonToState(XmlFeedAdapter.LISTEN, position);
             print("Download finalizado!", Toast.LENGTH_SHORT);
+        }
+    };
+
+    private BroadcastReceiver onEpisodeCompleteEvent = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+            String fileUri = intent.getStringExtra("fileUri");
         }
     };
 
