@@ -140,12 +140,14 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
                             File file = new File(path, fileuri.getLastPathSegment());
                             playEpisode(file);
                         } else {
-                            if (position == currentEpisode) rssPlayer.play();
-                            else {
-                                // Stop last episode and set button to 'Ouvir'
-                                rssPlayer.stop();
-                                setButtonToState(LISTEN, currentEpisode);
-
+                            if (position == currentEpisode) {
+                                rssPlayer.play();
+                            } else {
+                                // Stop last episode and set button to 'Ouvir'.
+                                if (currentEpisode != -1) {
+                                    rssPlayer.stop();
+                                    setButtonToState(LISTEN, currentEpisode);
+                                }
                                 // Play new episode
                                 Uri fileuri = Uri.parse(getItem(position).getDownloadLink());
                                 File file = new File(path, fileuri.getLastPathSegment());

@@ -60,6 +60,8 @@ public class RssPlayerService extends Service {
                     MainActivity.adapter.setButtonToState(
                             XmlFeedAdapter.DOWNLOAD, XmlFeedAdapter.currentEpisode
                     );
+                    // Flag the current episode is gone.
+                    XmlFeedAdapter.currentEpisode = -1;
                 }
             });
             play();
