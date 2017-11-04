@@ -188,6 +188,9 @@ public class MainActivity extends Activity {
             Intent playerIntent = new Intent(this, RssPlayerService.class);
             stopService(playerIntent);
         }
+        // Prevent memory leak
+        adapter = null;
+
         timer.cancel();
         super.onDestroy();
     }

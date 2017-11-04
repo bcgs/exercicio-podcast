@@ -19,16 +19,18 @@ public class RssPlayerService extends Service {
     private final IBinder binder = new RssBinder();
 
     private MediaPlayer player;
+    private Notification notification;
 
     private int id;
     private int cEpisode;
+    private boolean isForeground;
 
     @Override
     public void onCreate() {
         super.onCreate();
         Intent musicActivityIntent = new Intent(this, MainActivity.class);
         PendingIntent pendingIntent = PendingIntent.getActivity(this, 0, musicActivityIntent, 0);
-        Notification notification = new Notification.Builder(getApplicationContext())
+        notification = new Notification.Builder(getApplicationContext())
                 .setSmallIcon(android.R.drawable.ic_media_play)
                 .setOngoing(true)
                 .setContentTitle("RssPlayer")
@@ -38,6 +40,7 @@ public class RssPlayerService extends Service {
         // Starts as foreground state in order to get priority in memory
         // Avoids to be easily eliminated by the system.
         startForeground(NOTIFICATION_ID, notification);
+        isForeground = true;
     }
 
     @Override
@@ -52,7 +55,8 @@ public class RssPlayerService extends Service {
             player.setOnCompletionListener(new MediaPlayer.OnCompletionListener() {
                 @Override
                 public void onCompletion(MediaPlayer mp) {
-                    stopSelf(id);
+                    stopForeground(true);
+                    isForeground = false;
                     MainActivity.adapter.setButtonToState(
                             XmlFeedAdapter.DOWNLOAD, XmlFeedAdapter.currentEpisode
                     );
@@ -67,6 +71,7 @@ public class RssPlayerService extends Service {
     public void onDestroy() {
         if (player != null) {
             player.release();
+            stopSelf(id);
         }
         super.onDestroy();
     }
@@ -82,6 +87,11 @@ public class RssPlayerService extends Service {
             if (cPos != 0)
                 player.seekTo(cPos);
             player.start();
+
+            if (!isForeground) {
+                startForeground(id, notification);
+                isForeground = true;
+            }
         }
     }
 
@@ -107,7 +117,7 @@ public class RssPlayerService extends Service {
         MainActivity.status[cEpisode][1] = player.getCurrentPosition();
         for (int[] position : MainActivity.status)
             sBuilder.append(position[1]).append(",");
-        Log.e("Log pause", sBuilder.toString());
+        //Log.e("Log pause", sBuilder.toString());
         MainActivity.prefsEditor.putString(MainActivity.PAUSE_KEY, sBuilder.toString());
         MainActivity.prefsEditor.apply();
     }
