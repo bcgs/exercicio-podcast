@@ -22,13 +22,18 @@ import br.ufpe.cin.if710.podcast.service.RssPlayerService;
 
 public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
     public static int currentEpisode = -1;
-    public RssPlayerService rssPlayer;
+
+    public static final int DOWNLOAD = 0;
+    public final int DOWNLOADING = 1;
+    public static final int LISTEN = 2;
+    public final int PAUSE = 3;
+
+    private int[] btn_state;
+
     private int linkResource;
     public boolean isBound;
 
-    // btn_state[state]
-    // state 0: Baixar | state 1: Baixando | state 2: Ouvir | state 3: Pausar
-    private int[] btn_state;
+    public RssPlayerService rssPlayer;
 
     public XmlFeedAdapter(Context context, int resource, List<ItemFeed> objects) {
         super(context, resource, objects);
@@ -85,19 +90,19 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
         holder.item_title.setText(getItem(position).getTitle());
         holder.item_date.setText(getItem(position).getPubDate());
         switch (btn_state[position]) {
-            case 0:
+            case DOWNLOAD:
                 holder.item_action.setText("Baixar");
                 holder.item_action.setEnabled(true);
                 break;
-            case 1:
+            case DOWNLOADING:
                 holder.item_action.setText("Baixando");
                 holder.item_action.setEnabled(false);
                 break;
-            case 2:
+            case LISTEN:
                 holder.item_action.setText("Ouvir");
                 holder.item_action.setEnabled(true);
                 break;
-            case 3:
+            case PAUSE:
                 holder.item_action.setText("Pausar");
                 holder.item_action.setEnabled(true);
                 break;
@@ -106,11 +111,11 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
             @Override
             public void onClick(View v) {
                 switch (btn_state[position]) {
-                    case 0:
+                    case DOWNLOAD:
                         // Next step
                         holder.item_action.setText("Baixando");
                         holder.item_action.setEnabled(false);
-                        btn_state[position] = 1;
+                        btn_state[position] = DOWNLOADING;
 
                         // Call download service
                         Intent downloadService = new Intent(getContext(), DownloadService.class);
@@ -118,10 +123,10 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
                         downloadService.putExtra("position", position);
                         getContext().startService(downloadService);
                         break;
-                    case 2:
+                    case LISTEN:
                         holder.item_action.setText("Pausar");
                         holder.item_action.setEnabled(true);
-                        btn_state[position] = 3;
+                        btn_state[position] = PAUSE;
 
                         File path = Environment.
                                 getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
@@ -139,7 +144,7 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
                             else {
                                 // Stop last episode and set button to 'Ouvir'
                                 rssPlayer.stop();
-                                setButtonToListen(currentEpisode);
+                                setButtonToState(LISTEN, currentEpisode);
 
                                 // Play new episode
                                 Uri fileuri = Uri.parse(getItem(position).getDownloadLink());
@@ -150,10 +155,10 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
                         // Update current episode status
                         currentEpisode = position;
                         break;
-                    case 3:
+                    case PAUSE:
                         holder.item_action.setText("Ouvir");
                         holder.item_action.setEnabled(true);
-                        btn_state[position] = 2;
+                        btn_state[position] = LISTEN;
 
                         rssPlayer.pause();
                         break;
@@ -164,11 +169,12 @@ public class XmlFeedAdapter extends ArrayAdapter<ItemFeed> {
     }
 
     /**
-     * Use this function to update the status of a button.
-     * @param position Position of the button to be updated.
+     * Use this to set a state for a particular button.
+     * @param state It can be DOWNLOAD, DOWNLOADING, LISTEN or PAUSE.
+     * @param position Specific button to be changed.
      */
-    public void setButtonToListen(int position) {
-        btn_state[position] = 2;
+    public void setButtonToState(int state, int position) {
+        btn_state[position] = state;
         this.notifyDataSetChanged();    // Notify adapter
     }
 

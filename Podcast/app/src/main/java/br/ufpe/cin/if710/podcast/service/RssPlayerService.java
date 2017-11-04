@@ -15,7 +15,6 @@ import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 
 public class RssPlayerService extends Service {
     private static final int NOTIFICATION_ID = 1;
-    public static String PAUSE_KEY = "pause";
 
     private final IBinder binder = new RssBinder();
 
@@ -54,6 +53,9 @@ public class RssPlayerService extends Service {
                 @Override
                 public void onCompletion(MediaPlayer mp) {
                     stopSelf(id);
+                    MainActivity.adapter.setButtonToState(
+                            XmlFeedAdapter.DOWNLOAD, XmlFeedAdapter.currentEpisode
+                    );
                 }
             });
             play();
@@ -63,7 +65,9 @@ public class RssPlayerService extends Service {
 
     @Override
     public void onDestroy() {
-        if (player != null) player.release();
+        if (player != null) {
+            player.release();
+        }
         super.onDestroy();
     }
 
@@ -104,7 +108,7 @@ public class RssPlayerService extends Service {
         for (int[] position : MainActivity.status)
             sBuilder.append(position[1]).append(",");
         Log.e("Log pause", sBuilder.toString());
-        MainActivity.prefsEditor.putString(PAUSE_KEY, sBuilder.toString());
+        MainActivity.prefsEditor.putString(MainActivity.PAUSE_KEY, sBuilder.toString());
         MainActivity.prefsEditor.apply();
     }
 }

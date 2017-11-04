@@ -58,12 +58,14 @@ public class MainActivity extends Activity {
     private final String STATUS_KEY = "status";
     private final String SIZE_KEY = "listSize";
 
+    public static final String PAUSE_KEY = "pause";
+
+    public static XmlFeedAdapter adapter;
     public static SharedPreferences prefs;
     public static SharedPreferences.Editor prefsEditor;
     public static int[][] status;
 
     private PodcastProvider provider;
-    private XmlFeedAdapter adapter;
     private HashSet<String> dlinks;
     private ListView items;
     private Timer timer;
@@ -266,7 +268,7 @@ public class MainActivity extends Activity {
             for (int j = 0; j < status.length; j++) {
                 if (i >= dlinks.size()) break;
                 if (status[j][0] != 0) {
-                    adapter.setButtonToListen(j);
+                    adapter.setButtonToState(XmlFeedAdapter.LISTEN, j);
                     i++;
                 }
             }
@@ -312,7 +314,7 @@ public class MainActivity extends Activity {
      */
     private void restoreStatus() {
         String pos = prefs.getString(STATUS_KEY, "");
-        String lPos = prefs.getString(RssPlayerService.PAUSE_KEY, "");
+        String lPos = prefs.getString(PAUSE_KEY, "");
 
         if (!pos.equals("")) {
 
@@ -344,7 +346,7 @@ public class MainActivity extends Activity {
         //Log.e("sBuilder1", sBuilder1.toString());
         //Log.e("sBuilder2", sBuilder2.toString());
         prefsEditor.putString(STATUS_KEY, sBuilder1.toString());
-        prefsEditor.putString(RssPlayerService.PAUSE_KEY, sBuilder2.toString());
+        prefsEditor.putString(PAUSE_KEY, sBuilder2.toString());
         prefsEditor.apply();
     }
 
@@ -404,7 +406,7 @@ public class MainActivity extends Activity {
             // Update download button state
             int position = intent.getExtras().getInt("position");
             savePosition(position);
-            adapter.setButtonToListen(position);
+            adapter.setButtonToState(XmlFeedAdapter.LISTEN, position);
             print("Download finalizado!", Toast.LENGTH_SHORT);
         }
     };
