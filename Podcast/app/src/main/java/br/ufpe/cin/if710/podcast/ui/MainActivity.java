@@ -28,9 +28,11 @@ import android.widget.Toast;
 import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.URI;
 import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -46,7 +48,6 @@ import br.ufpe.cin.if710.podcast.db.PodcastProvider;
 import br.ufpe.cin.if710.podcast.db.PodcastProviderContract;
 import br.ufpe.cin.if710.podcast.domain.ItemFeed;
 import br.ufpe.cin.if710.podcast.domain.XmlFeedParser;
-import br.ufpe.cin.if710.podcast.service.DownloadService;
 import br.ufpe.cin.if710.podcast.service.RssPlayerService;
 import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 
@@ -354,8 +355,6 @@ public class MainActivity extends Activity {
             sBuilder1.append(position[0]).append(",");
             sBuilder2.append(position[1]).append(",");
         }
-        //Log.e("sBuilder1", sBuilder1.toString());
-        //Log.e("sBuilder2", sBuilder2.toString());
         prefsEditor.putString(STATUS_KEY, sBuilder1.toString());
         prefsEditor.putString(PAUSE_KEY, sBuilder2.toString());
         prefsEditor.apply();
@@ -370,9 +369,8 @@ public class MainActivity extends Activity {
         }
     }
 
-    private void saveDlinks(String dlink) {
+    private void saveDlinks() {
         StringBuilder sBuilder = new StringBuilder();
-        dlinks.add(dlink);
         Iterator<String> it = dlinks.iterator();
         while (it.hasNext())
             sBuilder.append(it.next()).append(",");
@@ -409,11 +407,11 @@ public class MainActivity extends Activity {
             // Update downloaded file URI to DB
             String dlink = intent.getStringExtra("downloadlink");
             Uri fileuri = (Uri) intent.getExtras().get("uri");
-            Log.e("onDownloadCompleteEvent", fileuri.toString());
             if(fileuri != null)
                 new UpdateUriTask().execute(dlink, fileuri.toString());
 
-            saveDlinks(dlink);
+            dlinks.add(dlink);
+            saveDlinks();
 
             // Update download button state
             int position = intent.getExtras().getInt("position");
@@ -427,6 +425,8 @@ public class MainActivity extends Activity {
         @Override
         public void onReceive(Context context, Intent intent) {
             String fileUri = intent.getStringExtra("fileUri");
+            int position = intent.getIntExtra("position", -1);
+            new RemoveEpisodeTask().execute(fileUri, String.valueOf(position));
         }
     };
 
@@ -577,6 +577,62 @@ public class MainActivity extends Activity {
                     selection,
                     selectionArgs
             );
+            return null;
+        }
+    }
+
+    private class RemoveEpisodeTask extends AsyncTask<String, Void, Void> {
+        @Override
+        protected Void doInBackground(String... strings) {
+
+            String selection = PodcastProviderContract.EPISODE_URI + " = ?";
+            String[] selectionArgs = { strings[0] };
+
+            // Get the download_link
+            String[] columns = { PodcastProviderContract.DOWNLOAD_LINK };
+            Cursor cursor = provider.query(
+                    PodcastProviderContract.EPISODE_LIST_URI,
+                    columns,
+                    selection,
+                    selectionArgs,
+                    null
+            );
+
+            // Remove it from HashSet so that
+            // it won't be count as a download.
+            if (cursor.getCount() > 0) {
+                cursor.moveToFirst();
+                String dLink = cursor.getString(cursor.getColumnIndex(
+                        PodcastProviderContract.DOWNLOAD_LINK)
+                );
+                dlinks.remove(dLink);
+                saveDlinks();
+            }
+            cursor.close();
+
+            // Remove from status
+            int pos = Integer.parseInt(strings[1]);
+            status[pos][0] = 0;
+            status[pos][1] = 0;
+            saveStatus();
+
+            // Remove from ext. memory
+            URI fileUri = URI.create(strings[0]);
+            File file = new File(fileUri);
+            if (file.delete())
+                Log.e("RemoveEpisodeTask", "Episode removed.");
+
+            // Update the existing file's Uri to DB so that
+            // the file will be removed on the next update.
+            ContentValues values = new ContentValues();
+            values.put(PodcastProviderContract.EPISODE_URI, "");
+            provider.update(
+                    PodcastProviderContract.EPISODE_LIST_URI,
+                    values,
+                    selection,
+                    selectionArgs
+            );
+
             return null;
         }
     }

@@ -29,7 +29,6 @@ public class DownloadService extends IntentService {
 
             // Downloaded file - path and filename
             File file = new File(path, intent.getData().getLastPathSegment());
-            if (file.exists()) file.delete();
 
             // Connection
             URL url = new URL(intent.getData().toString());

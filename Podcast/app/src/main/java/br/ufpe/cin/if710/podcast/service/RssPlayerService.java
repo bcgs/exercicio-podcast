@@ -9,13 +9,12 @@ import android.net.Uri;
 import android.os.Binder;
 import android.os.IBinder;
 import android.support.v4.content.LocalBroadcastManager;
-import android.util.Log;
 
 import br.ufpe.cin.if710.podcast.ui.MainActivity;
 import br.ufpe.cin.if710.podcast.ui.adapter.XmlFeedAdapter;
 
 public class RssPlayerService extends Service {
-    private static final int NOTIFICATION_ID = 1;
+    private final int NOTIFICATION_ID = 1;
 
     private final IBinder binder = new RssBinder();
 
@@ -95,7 +94,7 @@ public class RssPlayerService extends Service {
             player.start();
 
             if (!isForeground) {
-                startForeground(id, notification);
+                startForeground(NOTIFICATION_ID, notification);
                 isForeground = true;
             }
         }
@@ -136,6 +135,7 @@ public class RssPlayerService extends Service {
     private void removeEpisode(String fileUri) {
         Intent bIntent = new Intent(MainActivity.EPISODE_COMPLETE);
         bIntent.putExtra("fileUri", fileUri);
+        bIntent.putExtra("position", cEpisode);
         LocalBroadcastManager.getInstance(this).sendBroadcast(bIntent);
     }
 }
