@@ -1,0 +1,1 @@
+O único teste realizado foi de JUnit para a classe ItemFeed. Testes simples que serviram para validar a classe. Não consegui realizar outros testes nem usar UIAutomator ou Espresso.

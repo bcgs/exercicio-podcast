@@ -46,7 +46,7 @@ public class DownloadService extends IntentService {
             // Force bos to write buffered output bytes out to fos
             bos.flush();
 
-            // Ensure that data is physically written to device(disk)
+            // Ensure all the data is physically written to device(disk)
             fos.getFD().sync();
 
             bos.close();

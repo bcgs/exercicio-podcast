@@ -171,9 +171,8 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onPause() {
-        onForeground = false;
-
         super.onPause();
+        onForeground = false;
         LocalBroadcastManager.getInstance(this)
                 .unregisterReceiver(onDownloadCompleteEvent);
     }
